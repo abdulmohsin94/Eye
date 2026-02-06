@@ -358,6 +358,30 @@
     seekTo(t);
   };
 
+  // ── Mobile sidebar toggle ────────────────────────────────────────
+  const menuToggle = document.getElementById("menu-toggle");
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+
+  function openSidebar() {
+    sidebar.classList.add("open");
+    overlay.classList.remove("hidden");
+  }
+  function closeSidebar() {
+    sidebar.classList.remove("open");
+    overlay.classList.add("hidden");
+  }
+
+  menuToggle.addEventListener("click", () => {
+    sidebar.classList.contains("open") ? closeSidebar() : openSidebar();
+  });
+  overlay.addEventListener("click", closeSidebar);
+
+  // Close sidebar when a nav link is tapped on mobile
+  sidebar.querySelectorAll(".nav-link").forEach((link) => {
+    link.addEventListener("click", closeSidebar);
+  });
+
   // ── Init ─────────────────────────────────────────────────────────
   loadSessions();
 })();

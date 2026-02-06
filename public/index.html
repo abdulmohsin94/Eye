@@ -8,7 +8,21 @@
 </head>
 <body>
   <div id="app">
+    <!-- Mobile header -->
+    <div id="mobile-header">
+      <button id="menu-toggle" class="btn btn-sm" aria-label="Toggle menu">&#9776;</button>
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#6366f1" stroke-width="6"/>
+          <circle cx="50" cy="50" r="25" fill="none" stroke="#6366f1" stroke-width="4"/>
+          <circle cx="50" cy="50" r="8" fill="#6366f1"/>
+        </svg>
+        <span class="logo-text">Eye</span>
+      </div>
+    </div>
+
     <!-- Sidebar -->
+    <div id="sidebar-overlay" class="hidden"></div>
     <aside id="sidebar">
       <div class="logo">
         <svg width="28" height="28" viewBox="0 0 100 100">
@@ -33,6 +47,7 @@
           <h1>Recorded Sessions</h1>
           <button id="btn-refresh" class="btn btn-sm">Refresh</button>
         </header>
+        <div class="table-wrap">
         <table id="sessions-table">
           <thead>
             <tr>
@@ -48,6 +63,7 @@
             <tr><td colspan="6" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- Replay view -->
