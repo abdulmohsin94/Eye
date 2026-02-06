@@ -1,99 +1,147 @@
-// ── In-memory storage (Vercel-compatible) ────────────────────────────
-// Data lives in memory for the lifetime of the serverless function.
-// For persistent storage, swap this for a hosted DB (Turso, Supabase, etc.)
+// ── Turso (libSQL) persistent storage ────────────────────────────────
+// Set these env vars in Vercel:
+//   TURSO_DATABASE_URL  - e.g. libsql://your-db-name-your-org.turso.io
+//   TURSO_AUTH_TOKEN    - your Turso auth token
 
-const sessions = new Map();
-const events = new Map(); // sessionId -> [events]
+const { createClient } = require("@libsql/client");
 
-function now() {
-  return new Date().toISOString().replace("T", " ").slice(0, 19);
+const client = createClient({
+  url: process.env.TURSO_DATABASE_URL || "file:./data/local.db",
+  authToken: process.env.TURSO_AUTH_TOKEN,
+});
+
+// ── Initialize schema ────────────────────────────────────────────────
+let initialized = false;
+
+async function init() {
+  if (initialized) return;
+  await client.batch([
+    `CREATE TABLE IF NOT EXISTS sessions (
+      id           TEXT PRIMARY KEY,
+      url          TEXT,
+      event_count  INTEGER DEFAULT 0,
+      first_seen   TEXT DEFAULT (datetime('now')),
+      last_seen    TEXT DEFAULT (datetime('now'))
+    )`,
+    `CREATE TABLE IF NOT EXISTS events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      seq        INTEGER NOT NULL,
+      t          INTEGER NOT NULL,
+      type       TEXT NOT NULL,
+      data       TEXT NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, seq)`,
+  ]);
+  initialized = true;
 }
 
+// ── Exports ──────────────────────────────────────────────────────────
 module.exports = {
-  upsertSession(sessionId, url) {
-    const existing = sessions.get(sessionId);
-    if (existing) {
-      existing.url = url;
-      existing.last_seen = now();
-    } else {
-      sessions.set(sessionId, {
-        id: sessionId,
-        url,
-        event_count: 0,
-        first_seen: now(),
-        last_seen: now(),
-      });
-    }
+  init,
+
+  async upsertSession(sessionId, url) {
+    await init();
+    await client.execute({
+      sql: `INSERT INTO sessions (id, url) VALUES (?, ?)
+            ON CONFLICT(id) DO UPDATE SET url = excluded.url, last_seen = datetime('now')`,
+      args: [sessionId, url],
+    });
   },
 
-  insertEvents(sessionId, newEvents) {
-    if (!events.has(sessionId)) {
-      events.set(sessionId, []);
-    }
-    const list = events.get(sessionId);
-    for (const evt of newEvents) {
-      list.push({
-        id: list.length + 1,
-        session_id: sessionId,
-        seq: evt.seq,
-        t: evt.t,
-        type: evt.type,
-        data: JSON.stringify(evt.data),
-      });
-    }
-    // Update event count
-    const session = sessions.get(sessionId);
-    if (session) {
-      session.event_count = list.length;
-    }
+  async insertEvents(sessionId, events) {
+    await init();
+    const stmts = events.map((evt) => ({
+      sql: "INSERT INTO events (session_id, seq, t, type, data) VALUES (?, ?, ?, ?, ?)",
+      args: [sessionId, evt.seq, evt.t, evt.type, JSON.stringify(evt.data)],
+    }));
+    // Update event count after insert
+    stmts.push({
+      sql: "UPDATE sessions SET event_count = (SELECT COUNT(*) FROM events WHERE session_id = ?) WHERE id = ?",
+      args: [sessionId, sessionId],
+    });
+    await client.batch(stmts);
   },
 
-  getSessions(limit, offset) {
-    const all = Array.from(sessions.values())
-      .sort((a, b) => (b.last_seen > a.last_seen ? 1 : -1));
-    return all.slice(offset, offset + limit);
+  async getSessions(limit, offset) {
+    await init();
+    const result = await client.execute({
+      sql: "SELECT * FROM sessions ORDER BY last_seen DESC LIMIT ? OFFSET ?",
+      args: [limit, offset],
+    });
+    return result.rows;
   },
 
-  getSessionCount() {
-    return sessions.size;
+  async getSessionCount() {
+    await init();
+    const result = await client.execute("SELECT COUNT(*) as count FROM sessions");
+    return Number(result.rows[0].count);
   },
 
-  searchSessions({ search, dateFrom, dateTo, minEvents, limit, offset }) {
-    let results = Array.from(sessions.values());
+  async searchSessions({ search, dateFrom, dateTo, minEvents, limit, offset }) {
+    await init();
+    const conditions = [];
+    const args = [];
 
     if (search) {
-      const q = search.toLowerCase();
-      results = results.filter(
-        (s) => s.id.toLowerCase().includes(q) || (s.url || "").toLowerCase().includes(q)
-      );
+      conditions.push("(id LIKE ? OR url LIKE ?)");
+      args.push(`%${search}%`, `%${search}%`);
     }
     if (dateFrom) {
-      results = results.filter((s) => s.first_seen >= dateFrom);
+      conditions.push("first_seen >= ?");
+      args.push(dateFrom);
     }
     if (dateTo) {
-      results = results.filter((s) => s.first_seen <= dateTo + " 23:59:59");
+      conditions.push("first_seen <= ?");
+      args.push(dateTo + " 23:59:59");
     }
     if (minEvents) {
-      results = results.filter((s) => s.event_count >= minEvents);
+      conditions.push("event_count >= ?");
+      args.push(minEvents);
     }
 
-    results.sort((a, b) => (b.last_seen > a.last_seen ? 1 : -1));
-    const total = results.length;
-    const rows = results.slice(offset, offset + limit);
-    return { rows, total };
+    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+    const [rowsResult, countResult] = await Promise.all([
+      client.execute({
+        sql: `SELECT * FROM sessions ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`,
+        args: [...args, limit, offset],
+      }),
+      client.execute({
+        sql: `SELECT COUNT(*) as count FROM sessions ${where}`,
+        args: args,
+      }),
+    ]);
+
+    return {
+      rows: rowsResult.rows,
+      total: Number(countResult.rows[0].count),
+    };
   },
 
-  getSession(id) {
-    return sessions.get(id) || null;
+  async getSession(id) {
+    await init();
+    const result = await client.execute({
+      sql: "SELECT * FROM sessions WHERE id = ?",
+      args: [id],
+    });
+    return result.rows[0] || null;
   },
 
-  getEvents(sessionId) {
-    const list = events.get(sessionId) || [];
-    return list.slice().sort((a, b) => a.seq - b.seq);
+  async getEvents(sessionId) {
+    await init();
+    const result = await client.execute({
+      sql: "SELECT * FROM events WHERE session_id = ? ORDER BY seq ASC",
+      args: [sessionId],
+    });
+    return result.rows;
   },
 
-  deleteSession(id) {
-    sessions.delete(id);
-    events.delete(id);
+  async deleteSession(id) {
+    await init();
+    await client.batch([
+      { sql: "DELETE FROM events WHERE session_id = ?", args: [id] },
+      { sql: "DELETE FROM sessions WHERE id = ?", args: [id] },
+    ]);
   },
 };

@@ -45,14 +45,19 @@ app.post("/api/auth/logout", (req, res) => {
 app.use("/snippet", express.static(path.join(__dirname, "..", "snippet")));
 
 // ── Event ingestion (public - no auth required) ──────────────────────
-app.post("/api/events", (req, res) => {
-  const { sessionId, url, events } = req.body;
-  if (!sessionId || !events || !Array.isArray(events)) {
-    return res.status(400).json({ error: "Invalid payload" });
+app.post("/api/events", async (req, res) => {
+  try {
+    const { sessionId, url, events } = req.body;
+    if (!sessionId || !events || !Array.isArray(events)) {
+      return res.status(400).json({ error: "Invalid payload" });
+    }
+    await db.upsertSession(sessionId, url);
+    await db.insertEvents(sessionId, events);
+    res.json({ ok: true, count: events.length });
+  } catch (e) {
+    console.error("Event ingestion error:", e);
+    res.status(500).json({ error: "Failed to store events" });
   }
-  db.upsertSession(sessionId, url);
-  db.insertEvents(sessionId, events);
-  res.json({ ok: true, count: events.length });
 });
 
 // ── Auth middleware for everything below ─────────────────────────────
@@ -73,47 +78,69 @@ app.use(requireAuth);
 app.use(express.static(path.join(__dirname, "..", "public")));
 
 // ── List all sessions (with optional search & filters) ───────────────
-app.get("/api/sessions", (req, res) => {
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.min(100, parseInt(req.query.limit) || 25);
-  const offset = (page - 1) * limit;
-  const search = req.query.search || "";
-  const dateFrom = req.query.dateFrom || "";
-  const dateTo = req.query.dateTo || "";
-  const minEvents = parseInt(req.query.minEvents) || 0;
+app.get("/api/sessions", async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 25);
+    const offset = (page - 1) * limit;
+    const search = req.query.search || "";
+    const dateFrom = req.query.dateFrom || "";
+    const dateTo = req.query.dateTo || "";
+    const minEvents = parseInt(req.query.minEvents) || 0;
 
-  const hasFilters = search || dateFrom || dateTo || minEvents;
+    const hasFilters = search || dateFrom || dateTo || minEvents;
 
-  if (hasFilters) {
-    const { rows, total } = db.searchSessions({
-      search, dateFrom, dateTo, minEvents, limit, offset,
-    });
-    return res.json({ sessions: rows, total, page, limit });
+    if (hasFilters) {
+      const { rows, total } = await db.searchSessions({
+        search, dateFrom, dateTo, minEvents, limit, offset,
+      });
+      return res.json({ sessions: rows, total, page, limit });
+    }
+
+    const [sessions, total] = await Promise.all([
+      db.getSessions(limit, offset),
+      db.getSessionCount(),
+    ]);
+
+    res.json({ sessions, total, page, limit });
+  } catch (e) {
+    console.error("List sessions error:", e);
+    res.status(500).json({ error: "Failed to load sessions" });
   }
-
-  const sessions = db.getSessions(limit, offset);
-  const total = db.getSessionCount();
-
-  res.json({ sessions, total, page, limit });
 });
 
 // ── Get single session detail ────────────────────────────────────────
-app.get("/api/sessions/:id", (req, res) => {
-  const session = db.getSession(req.params.id);
-  if (!session) return res.status(404).json({ error: "Session not found" });
-  res.json(session);
+app.get("/api/sessions/:id", async (req, res) => {
+  try {
+    const session = await db.getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: "Session not found" });
+    res.json(session);
+  } catch (e) {
+    console.error("Get session error:", e);
+    res.status(500).json({ error: "Failed to load session" });
+  }
 });
 
 // ── Get events for a session ─────────────────────────────────────────
-app.get("/api/sessions/:id/events", (req, res) => {
-  const events = db.getEvents(req.params.id);
-  res.json({ events });
+app.get("/api/sessions/:id/events", async (req, res) => {
+  try {
+    const events = await db.getEvents(req.params.id);
+    res.json({ events });
+  } catch (e) {
+    console.error("Get events error:", e);
+    res.status(500).json({ error: "Failed to load events" });
+  }
 });
 
 // ── Delete a session ─────────────────────────────────────────────────
-app.delete("/api/sessions/:id", (req, res) => {
-  db.deleteSession(req.params.id);
-  res.json({ ok: true });
+app.delete("/api/sessions/:id", async (req, res) => {
+  try {
+    await db.deleteSession(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Delete session error:", e);
+    res.status(500).json({ error: "Failed to delete session" });
+  }
 });
 
 // ── Dashboard SPA fallback ───────────────────────────────────────────
