@@ -36,6 +36,9 @@ app.post("/api/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Serve snippet publicly (sites need to load it without auth) ──────
+app.use("/snippet", express.static(path.join(__dirname, "..", "snippet")));
+
 // ── Event ingestion (public - no auth required) ──────────────────────
 app.post("/api/events", (req, res) => {
   const { sessionId, url, events } = req.body;
