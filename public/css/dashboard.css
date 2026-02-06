@@ -245,7 +245,7 @@ body {
   border: 2px solid var(--primary);
   transform: translate(-50%, -50%);
   pointer-events: none;
-  transition: left 0.05s linear, top 0.05s linear;
+  transition: left 0.08s linear, top 0.08s linear;
   z-index: 10;
   display: none;
 }

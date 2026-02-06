@@ -171,11 +171,22 @@
         loadSnapshot(snapshot.data);
       }
 
+      // Find first non-snapshot event to start from
       playbackIndex = 0;
+      for (let i = 0; i < currentEvents.length; i++) {
+        if (currentEvents[i].type !== "snapshot" && currentEvents[i].type !== "styles") {
+          playbackIndex = i;
+          break;
+        }
+      }
+
       isPlaying = false;
       btnPlay.classList.remove("hidden");
       btnPause.classList.add("hidden");
       replayCursor.style.display = "none";
+
+      // Auto-play
+      play();
     } catch (e) {
       alert("Failed to load session events.");
     }
@@ -201,50 +212,68 @@
     }
   }
 
-  // ── Playback Engine ──────────────────────────────────────────────
+  // ── Playback Engine (requestAnimationFrame-based) ──────────────
+  let rafId = null;
+
   function play() {
     if (playbackIndex >= currentEvents.length) {
       playbackIndex = 0;
+      // Reload snapshot
+      const snapshot = currentEvents.find((e) => e.type === "snapshot");
+      if (snapshot) loadSnapshot(snapshot.data);
     }
     isPlaying = true;
     btnPlay.classList.add("hidden");
     btnPause.classList.remove("hidden");
     replayCursor.style.display = "block";
 
-    playbackStart = Date.now() - currentEvents[playbackIndex].t / speed;
-    scheduleNext();
+    playbackStart = performance.now() - (currentEvents[playbackIndex].t / speed);
+    if (rafId) cancelAnimationFrame(rafId);
+    rafLoop();
   }
 
   function pause() {
     isPlaying = false;
-    clearTimeout(playbackTimer);
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
     btnPause.classList.add("hidden");
     btnPlay.classList.remove("hidden");
   }
 
-  function scheduleNext() {
-    if (!isPlaying || playbackIndex >= currentEvents.length) {
+  function rafLoop() {
+    if (!isPlaying) return;
+
+    const elapsed = (performance.now() - playbackStart) * speed;
+    let eventsThisFrame = 0;
+    const maxPerFrame = 50; // cap to avoid jank
+
+    while (
+      playbackIndex < currentEvents.length &&
+      eventsThisFrame < maxPerFrame
+    ) {
+      const evt = currentEvents[playbackIndex];
+      if (evt.t > elapsed) break; // not time yet
+
+      processEvent(evt);
+      playbackIndex++;
+      eventsThisFrame++;
+    }
+
+    // Update UI (only once per frame, not per event)
+    if (eventsThisFrame > 0) {
+      const currentT = currentEvents[Math.min(playbackIndex, currentEvents.length - 1)].t;
+      scrubber.value = currentT;
+      updateTimeDisplay(currentT);
+    }
+
+    if (playbackIndex >= currentEvents.length) {
       pause();
       return;
     }
 
-    const evt = currentEvents[playbackIndex];
-    const elapsed = (Date.now() - playbackStart) * speed;
-    const delay = Math.max(0, (evt.t - elapsed) / speed);
-
-    playbackTimer = setTimeout(() => {
-      processEvent(evt);
-      playbackIndex++;
-      scrubber.value = evt.t;
-      updateTimeDisplay(evt.t);
-
-      // Highlight active timeline dot
-      document.querySelectorAll(".timeline-dot").forEach((d) => d.classList.remove("active"));
-      const dot = document.getElementById("dot-" + playbackIndex);
-      if (dot) dot.classList.add("active");
-
-      scheduleNext();
-    }, delay);
+    rafId = requestAnimationFrame(rafLoop);
   }
 
   function processEvent(evt) {
@@ -255,22 +284,22 @@
         break;
 
       case "mousemove":
-        replayCursor.style.left = d.x * viewportScale + "px";
-        replayCursor.style.top = d.y * viewportScale + "px";
+        replayCursor.style.left = (d.x * viewportScale) + "px";
+        replayCursor.style.top = (d.y * viewportScale) + "px";
         replayCursor.style.display = "block";
         replayCursor.classList.remove("clicking", "rage");
         break;
 
       case "click":
-        replayCursor.style.left = d.x * viewportScale + "px";
-        replayCursor.style.top = d.y * viewportScale + "px";
+        replayCursor.style.left = (d.x * viewportScale) + "px";
+        replayCursor.style.top = (d.y * viewportScale) + "px";
         replayCursor.classList.add("clicking");
         setTimeout(() => replayCursor.classList.remove("clicking"), 300);
         break;
 
       case "rage_click":
-        replayCursor.style.left = d.x * viewportScale + "px";
-        replayCursor.style.top = d.y * viewportScale + "px";
+        replayCursor.style.left = (d.x * viewportScale) + "px";
+        replayCursor.style.top = (d.y * viewportScale) + "px";
         replayCursor.classList.add("rage");
         setTimeout(() => replayCursor.classList.remove("rage"), 600);
         break;
@@ -281,14 +310,14 @@
         } catch (e) {}
         break;
 
-      case "resize":
-        // Update viewport scale
+      case "resize": {
         const container = document.getElementById("replay-viewport");
         viewportScale = container.clientWidth / d.width;
         replayFrame.style.width = d.width + "px";
         replayFrame.style.height = d.height + "px";
         replayFrame.style.transform = `scale(${viewportScale})`;
         break;
+      }
 
       case "input":
         try {
@@ -298,7 +327,6 @@
         break;
 
       case "mutation":
-        // For now just display in timeline; full DOM patching is complex
         break;
 
       case "error":
@@ -336,18 +364,22 @@
         playbackIndex = i;
         break;
       }
-      processEvent(currentEvents[i]);
+      // Skip mousemoves during seek for speed
+      if (currentEvents[i].type !== "mousemove") {
+        processEvent(currentEvents[i]);
+      }
       playbackIndex = i + 1;
     }
 
     updateTimeDisplay(targetT);
 
     if (wasPlaying) {
-      playbackStart = Date.now() - targetT / speed;
+      playbackStart = performance.now() - (targetT / speed);
       isPlaying = true;
       btnPlay.classList.add("hidden");
       btnPause.classList.remove("hidden");
-      scheduleNext();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafLoop();
     }
   }
 
