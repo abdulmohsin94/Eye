@@ -3,7 +3,7 @@
 
   // ── Configuration ──────────────────────────────────────────────────
   var EYE_ENDPOINT =
-    window.__EYE_ENDPOINT || "http://localhost:3000/api/events";
+    window.__EYE_ENDPOINT || (location.origin + "/api/events");
   var FLUSH_INTERVAL = 2000; // ms between batch sends
   var MAX_BUFFER = 200; // flush if buffer exceeds this
 
