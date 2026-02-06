@@ -1,151 +1,99 @@
-const Database = require("better-sqlite3");
-const path = require("path");
+// ── In-memory storage (Vercel-compatible) ────────────────────────────
+// Data lives in memory for the lifetime of the serverless function.
+// For persistent storage, swap this for a hosted DB (Turso, Supabase, etc.)
 
-const DB_PATH = path.join(__dirname, "..", "data", "eye.db");
+const sessions = new Map();
+const events = new Map(); // sessionId -> [events]
 
-// Ensure data directory exists
-const fs = require("fs");
-fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+function now() {
+  return new Date().toISOString().replace("T", " ").slice(0, 19);
+}
 
-const db = new Database(DB_PATH);
-
-// Enable WAL mode for better concurrent read/write performance
-db.pragma("journal_mode = WAL");
-
-// ── Schema ───────────────────────────────────────────────────────────
-db.exec(`
-  CREATE TABLE IF NOT EXISTS sessions (
-    id           TEXT PRIMARY KEY,
-    url          TEXT,
-    event_count  INTEGER DEFAULT 0,
-    first_seen   TEXT DEFAULT (datetime('now')),
-    last_seen    TEXT DEFAULT (datetime('now'))
-  );
-
-  CREATE TABLE IF NOT EXISTS events (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    seq        INTEGER NOT NULL,
-    t          INTEGER NOT NULL,
-    type       TEXT NOT NULL,
-    data       TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, seq);
-`);
-
-// ── Prepared statements ──────────────────────────────────────────────
-const stmts = {
-  upsertSession: db.prepare(`
-    INSERT INTO sessions (id, url) VALUES (?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      url = excluded.url,
-      last_seen = datetime('now')
-  `),
-
-  updateEventCount: db.prepare(`
-    UPDATE sessions SET event_count = (
-      SELECT COUNT(*) FROM events WHERE session_id = ?
-    ) WHERE id = ?
-  `),
-
-  insertEvent: db.prepare(`
-    INSERT INTO events (session_id, seq, t, type, data) VALUES (?, ?, ?, ?, ?)
-  `),
-
-  getSessions: db.prepare(`
-    SELECT * FROM sessions ORDER BY last_seen DESC LIMIT ? OFFSET ?
-  `),
-
-  getSessionCount: db.prepare(`SELECT COUNT(*) as count FROM sessions`),
-
-  getSession: db.prepare(`SELECT * FROM sessions WHERE id = ?`),
-
-  getEvents: db.prepare(`
-    SELECT * FROM events WHERE session_id = ? ORDER BY seq ASC
-  `),
-
-  deleteEvents: db.prepare(`DELETE FROM events WHERE session_id = ?`),
-  deleteSession: db.prepare(`DELETE FROM sessions WHERE id = ?`),
-};
-
-// ── Transactional batch insert ───────────────────────────────────────
-const insertMany = db.transaction((sessionId, events) => {
-  for (const evt of events) {
-    stmts.insertEvent.run(
-      sessionId,
-      evt.seq,
-      evt.t,
-      evt.type,
-      JSON.stringify(evt.data)
-    );
-  }
-  stmts.updateEventCount.run(sessionId, sessionId);
-});
-
-// ── Exports ──────────────────────────────────────────────────────────
 module.exports = {
   upsertSession(sessionId, url) {
-    stmts.upsertSession.run(sessionId, url);
+    const existing = sessions.get(sessionId);
+    if (existing) {
+      existing.url = url;
+      existing.last_seen = now();
+    } else {
+      sessions.set(sessionId, {
+        id: sessionId,
+        url,
+        event_count: 0,
+        first_seen: now(),
+        last_seen: now(),
+      });
+    }
   },
 
-  insertEvents(sessionId, events) {
-    insertMany(sessionId, events);
+  insertEvents(sessionId, newEvents) {
+    if (!events.has(sessionId)) {
+      events.set(sessionId, []);
+    }
+    const list = events.get(sessionId);
+    for (const evt of newEvents) {
+      list.push({
+        id: list.length + 1,
+        session_id: sessionId,
+        seq: evt.seq,
+        t: evt.t,
+        type: evt.type,
+        data: JSON.stringify(evt.data),
+      });
+    }
+    // Update event count
+    const session = sessions.get(sessionId);
+    if (session) {
+      session.event_count = list.length;
+    }
   },
 
   getSessions(limit, offset) {
-    return stmts.getSessions.all(limit, offset);
+    const all = Array.from(sessions.values())
+      .sort((a, b) => (b.last_seen > a.last_seen ? 1 : -1));
+    return all.slice(offset, offset + limit);
   },
 
   getSessionCount() {
-    return stmts.getSessionCount.get().count;
+    return sessions.size;
   },
 
   searchSessions({ search, dateFrom, dateTo, minEvents, limit, offset }) {
-    const conditions = [];
-    const params = [];
+    let results = Array.from(sessions.values());
 
     if (search) {
-      conditions.push("(id LIKE ? OR url LIKE ?)");
-      params.push(`%${search}%`, `%${search}%`);
+      const q = search.toLowerCase();
+      results = results.filter(
+        (s) => s.id.toLowerCase().includes(q) || (s.url || "").toLowerCase().includes(q)
+      );
     }
     if (dateFrom) {
-      conditions.push("first_seen >= ?");
-      params.push(dateFrom);
+      results = results.filter((s) => s.first_seen >= dateFrom);
     }
     if (dateTo) {
-      conditions.push("first_seen <= ?");
-      params.push(dateTo + " 23:59:59");
+      results = results.filter((s) => s.first_seen <= dateTo + " 23:59:59");
     }
     if (minEvents) {
-      conditions.push("event_count >= ?");
-      params.push(minEvents);
+      results = results.filter((s) => s.event_count >= minEvents);
     }
 
-    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
-
-    const rows = db
-      .prepare(`SELECT * FROM sessions ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`)
-      .all(...params, limit, offset);
-
-    const total = db
-      .prepare(`SELECT COUNT(*) as count FROM sessions ${where}`)
-      .get(...params).count;
-
+    results.sort((a, b) => (b.last_seen > a.last_seen ? 1 : -1));
+    const total = results.length;
+    const rows = results.slice(offset, offset + limit);
     return { rows, total };
   },
 
   getSession(id) {
-    return stmts.getSession.get(id);
+    return sessions.get(id) || null;
   },
 
   getEvents(sessionId) {
-    return stmts.getEvents.all(sessionId);
+    const list = events.get(sessionId) || [];
+    return list.slice().sort((a, b) => a.seq - b.seq);
   },
 
   deleteSession(id) {
-    stmts.deleteEvents.run(id);
-    stmts.deleteSession.run(id);
+    sessions.delete(id);
+    events.delete(id);
   },
 };
