@@ -263,22 +263,27 @@ body {
   transform: translate(-50%, -50%) scale(2);
 }
 
+/* ── Replay header ───────────────────────────────────────────────── */
+.replay-header {
+  justify-content: space-between;
+}
+.replay-header h1 { flex: 1; }
+
 /* ── Controls ────────────────────────────────────────────────────── */
 #replay-controls {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px;
   background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 var(--radius) var(--radius);
+  border-top: 1px solid var(--border);
 }
 
 #replay-scrubber {
   flex: 1;
   accent-color: var(--primary);
   cursor: pointer;
+  height: 20px;
 }
 
 #replay-time {
@@ -296,6 +301,46 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
+}
+
+/* ── Fullscreen replay mode ──────────────────────────────────────── */
+#view-replay.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--bg);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#view-replay.fullscreen .replay-header {
+  padding: 8px 12px;
+  margin: 0;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+}
+
+#view-replay.fullscreen #replay-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  border-radius: 0;
+}
+
+#view-replay.fullscreen #replay-viewport {
+  flex: 1;
+  height: auto;
+}
+
+#view-replay.fullscreen #replay-controls {
+  border-radius: 0;
+}
+
+#view-replay.fullscreen #event-timeline {
+  display: none;
 }
 
 /* ── Event Timeline ──────────────────────────────────────────────── */
@@ -411,26 +456,68 @@ body {
 
   .session-url { max-width: 160px; }
 
-  /* Replay viewport */
-  #replay-viewport { height: 300px; }
+  /* Replay: auto-enter fullscreen on mobile */
+  #view-replay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: var(--bg);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #view-replay.hidden { display: none !important; }
 
-  /* Stack replay controls */
+  .replay-header {
+    padding: 10px 12px;
+    margin: 0;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .replay-header h1 { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #btn-fullscreen { display: none; }
+
+  #replay-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+  }
+
+  #replay-viewport {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+  }
+
   #replay-controls {
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 12px;
+    gap: 6px;
+    padding: 10px 12px;
+    flex-shrink: 0;
   }
-  #replay-scrubber { min-width: 100%; order: 10; }
+  #replay-controls .btn { padding: 8px 14px; font-size: 14px; }
+  #replay-scrubber {
+    order: 10;
+    min-width: 100%;
+    height: 28px;
+    margin: 4px 0 0;
+  }
   #replay-time { min-width: auto; font-size: 12px; }
+  #replay-speed { padding: 8px 10px; font-size: 13px; }
 
-  /* Timeline */
-  #timeline-events { max-height: 150px; }
+  /* Hide timeline on mobile replay (save space) */
+  #event-timeline { display: none; }
 }
 
 @media (max-width: 480px) {
   #main { padding: 12px; }
   .view-header h1 { font-size: 16px; }
-  #replay-viewport { height: 220px; }
 
   .btn { padding: 6px 10px; font-size: 13px; }
   .btn-sm { padding: 5px 8px; font-size: 12px; }

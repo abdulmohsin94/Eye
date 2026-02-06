@@ -20,6 +20,7 @@
   const sessionsBody = document.getElementById("sessions-body");
   const btnRefresh = document.getElementById("btn-refresh");
   const btnBack = document.getElementById("btn-back");
+  const btnFullscreen = document.getElementById("btn-fullscreen");
   const replayTitle = document.getElementById("replay-title");
   const replayFrame = document.getElementById("replay-frame");
   const replayCursor = document.getElementById("replay-cursor");
@@ -437,9 +438,28 @@
     loadSessions();
   }
 
+  // ── Fullscreen toggle ───────────────────────────────────────────
+  function toggleFullscreen() {
+    viewReplay.classList.toggle("fullscreen");
+    // Recalculate viewport scale after layout change
+    setTimeout(() => {
+      const snapshot = currentEvents.find((e) => e.type === "snapshot");
+      if (snapshot && snapshot.data.width) {
+        const container = document.getElementById("replay-viewport");
+        viewportScale = container.clientWidth / snapshot.data.width;
+        replayFrame.style.transform = `scale(${viewportScale})`;
+      }
+    }, 100);
+  }
+
+  if (btnFullscreen) {
+    btnFullscreen.addEventListener("click", toggleFullscreen);
+  }
+
   // ── Navigation ───────────────────────────────────────────────────
   btnBack.addEventListener("click", () => {
     pause();
+    viewReplay.classList.remove("fullscreen");
     viewReplay.classList.add("hidden");
     viewSessions.classList.remove("hidden");
     replayCursor.style.display = "none";
@@ -480,6 +500,18 @@
   // Close sidebar when a nav link is tapped on mobile
   sidebar.querySelectorAll(".nav-link").forEach((link) => {
     link.addEventListener("click", closeSidebar);
+  });
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────
+  document.addEventListener("keydown", (e) => {
+    if (viewReplay.classList.contains("hidden")) return;
+    if (e.key === "Escape" && viewReplay.classList.contains("fullscreen")) {
+      toggleFullscreen();
+    }
+    if (e.key === " " && e.target.tagName !== "INPUT" && e.target.tagName !== "SELECT") {
+      e.preventDefault();
+      isPlaying ? pause() : play();
+    }
   });
 
   // ── Init ─────────────────────────────────────────────────────────

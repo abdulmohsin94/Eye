@@ -89,9 +89,10 @@
 
       <!-- Replay view -->
       <div id="view-replay" class="hidden">
-        <header class="view-header">
+        <header class="view-header replay-header">
           <button id="btn-back" class="btn btn-sm">&larr; Back</button>
           <h1 id="replay-title">Replaying Session</h1>
+          <button id="btn-fullscreen" class="btn btn-sm" title="Fullscreen">&#x26F6;</button>
         </header>
 
         <div id="replay-container">
@@ -99,20 +100,20 @@
             <iframe id="replay-frame" sandbox="allow-same-origin"></iframe>
             <div id="replay-cursor"></div>
           </div>
-        </div>
 
-        <div id="replay-controls">
-          <button id="btn-play" class="btn">&#9654; Play</button>
-          <button id="btn-pause" class="btn hidden">&#10074;&#10074; Pause</button>
-          <input type="range" id="replay-scrubber" min="0" max="1000" value="0" />
-          <span id="replay-time">0:00 / 0:00</span>
-          <select id="replay-speed">
-            <option value="0.5">0.5x</option>
-            <option value="1" selected>1x</option>
-            <option value="2">2x</option>
-            <option value="4">4x</option>
-            <option value="8">8x</option>
-          </select>
+          <div id="replay-controls">
+            <button id="btn-play" class="btn">&#9654;</button>
+            <button id="btn-pause" class="btn hidden">&#10074;&#10074;</button>
+            <input type="range" id="replay-scrubber" min="0" max="1000" value="0" />
+            <span id="replay-time">0:00 / 0:00</span>
+            <select id="replay-speed">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x</option>
+            </select>
+          </div>
         </div>
 
         <!-- Event timeline -->
