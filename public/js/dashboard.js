@@ -136,6 +136,30 @@
     loadSessions();
   });
 
+  // ── Normalize timestamps across page reloads ────────────────────
+  // When a page reloads within the same session, the recorder resets
+  // its startTs so timestamps jump back near 0. We detect these resets
+  // (a snapshot event with a t much smaller than the previous event)
+  // and accumulate an offset so the timeline is continuous.
+  function normalizeTimestamps() {
+    if (currentEvents.length === 0) return;
+
+    let offset = 0;
+    let prevT = 0;
+    const GAP_BETWEEN_LOADS = 500; // add 500ms gap between page loads
+
+    for (let i = 0; i < currentEvents.length; i++) {
+      const evt = currentEvents[i];
+      // Detect a timestamp reset: t drops significantly below previous
+      if (i > 0 && evt.t < prevT - 1000) {
+        // New page load detected: shift by previous high-water mark + gap
+        offset = prevT + GAP_BETWEEN_LOADS;
+      }
+      prevT = evt.t;
+      evt.t = evt.t + offset;
+    }
+  }
+
   // ── Replay ───────────────────────────────────────────────────────
   async function startReplay(sessionId) {
     try {
@@ -151,6 +175,10 @@
         alert("No events recorded for this session.");
         return;
       }
+
+      // Normalize timestamps: page reloads reset t to 0, so we need to
+      // detect those resets and make timestamps continuously increasing.
+      normalizeTimestamps();
 
       // Switch views
       viewSessions.classList.add("hidden");

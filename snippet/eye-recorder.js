@@ -14,11 +14,19 @@
 
   var buffer = [];
   var startTs = Date.now();
-  var seqNum = 0;
+  var seqNum = parseInt(sessionStorage.getItem("_eye_seq") || "0", 10);
+
+  // Persist cumulative time offset so timestamps are continuous across refreshes
+  var timeOffset = parseFloat(sessionStorage.getItem("_eye_toff") || "0");
+  // On unload we save current elapsed time as the new offset
+  window.addEventListener("pagehide", function () {
+    sessionStorage.setItem("_eye_toff", String(timeOffset + (Date.now() - startTs)));
+    sessionStorage.setItem("_eye_seq", String(seqNum));
+  });
 
   // ── Helpers ────────────────────────────────────────────────────────
   function ts() {
-    return Date.now() - startTs;
+    return timeOffset + (Date.now() - startTs);
   }
 
   function push(type, data) {

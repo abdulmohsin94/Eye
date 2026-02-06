@@ -131,7 +131,7 @@ module.exports = {
   async getEvents(sessionId) {
     await init();
     const result = await client.execute({
-      sql: "SELECT * FROM events WHERE session_id = ? ORDER BY seq ASC",
+      sql: "SELECT * FROM events WHERE session_id = ? ORDER BY id ASC",
       args: [sessionId],
     });
     return result.rows;
