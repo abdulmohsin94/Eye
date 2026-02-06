@@ -125,7 +125,13 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "public", "index.html"));
 });
 
-app.listen(PORT, () => {
-  console.log(`Eye Session Replay running at http://localhost:${PORT}`);
-  console.log(`Default password: eye-admin (set EYE_PASSWORD env var to change)`);
-});
+// Start server when run directly (not on Vercel)
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Eye Session Replay running at http://localhost:${PORT}`);
+    console.log(`Default password: eye-admin (set EYE_PASSWORD env var to change)`);
+  });
+}
+
+// Export for Vercel serverless
+module.exports = app;
