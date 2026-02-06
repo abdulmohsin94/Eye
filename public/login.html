@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eye - Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e4e5eb;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .login-card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3e;
+      border-radius: 12px;
+      padding: 40px;
+      width: 100%;
+      max-width: 380px;
+    }
+    .login-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+    .login-logo span {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    h2 {
+      text-align: center;
+      font-size: 18px;
+      font-weight: 500;
+      color: #8b8fa3;
+      margin-bottom: 24px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: #8b8fa3;
+      margin-bottom: 6px;
+    }
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      background: #0f1117;
+      border: 1px solid #2a2d3e;
+      border-radius: 8px;
+      color: #e4e5eb;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="password"]:focus {
+      border-color: #6366f1;
+    }
+    .error-msg {
+      color: #ef4444;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 10px;
+      background: #6366f1;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: #818cf8; }
+  </style>
+</head>
+<body>
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="28" height="28" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="45" fill="none" stroke="#6366f1" stroke-width="6"/>
+        <circle cx="50" cy="50" r="25" fill="none" stroke="#6366f1" stroke-width="4"/>
+        <circle cx="50" cy="50" r="8" fill="#6366f1"/>
+      </svg>
+      <span>Eye</span>
+    </div>
+    <h2>Enter password to continue</h2>
+    <form id="login-form">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Dashboard password" autofocus required />
+      <div class="error-msg" id="error-msg">Invalid password. Please try again.</div>
+      <button type="submit">Sign In</button>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var password = document.getElementById("password").value;
+      var errorEl = document.getElementById("error-msg");
+      errorEl.style.display = "none";
+
+      try {
+        var res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: password }),
+        });
+        if (res.ok) {
+          window.location.href = "/";
+        } else {
+          errorEl.style.display = "block";
+          document.getElementById("password").value = "";
+          document.getElementById("password").focus();
+        }
+      } catch (err) {
+        errorEl.textContent = "Connection error. Please try again.";
+        errorEl.style.display = "block";
+      }
+    });
+  </script>
+</body>
+</html>
