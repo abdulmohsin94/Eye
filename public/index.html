@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eye - Session Replay</title>
+  <link rel="stylesheet" href="/css/dashboard.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside id="sidebar">
+      <div class="logo">
+        <svg width="28" height="28" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="#6366f1" stroke-width="6"/>
+          <circle cx="50" cy="50" r="25" fill="none" stroke="#6366f1" stroke-width="4"/>
+          <circle cx="50" cy="50" r="8" fill="#6366f1"/>
+        </svg>
+        <span class="logo-text">Eye</span>
+      </div>
+      <nav>
+        <a href="/" class="nav-link active" data-view="sessions">
+          <span class="nav-icon">&#9654;</span> Sessions
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main id="main">
+      <!-- Sessions list view -->
+      <div id="view-sessions">
+        <header class="view-header">
+          <h1>Recorded Sessions</h1>
+          <button id="btn-refresh" class="btn btn-sm">Refresh</button>
+        </header>
+        <table id="sessions-table">
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Page URL</th>
+              <th>Events</th>
+              <th>First Seen</th>
+              <th>Last Activity</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sessions-body">
+            <tr><td colspan="6" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Replay view -->
+      <div id="view-replay" class="hidden">
+        <header class="view-header">
+          <button id="btn-back" class="btn btn-sm">&larr; Back</button>
+          <h1 id="replay-title">Replaying Session</h1>
+        </header>
+
+        <div id="replay-container">
+          <div id="replay-viewport">
+            <iframe id="replay-frame" sandbox="allow-same-origin"></iframe>
+            <div id="replay-cursor"></div>
+          </div>
+        </div>
+
+        <div id="replay-controls">
+          <button id="btn-play" class="btn">&#9654; Play</button>
+          <button id="btn-pause" class="btn hidden">&#10074;&#10074; Pause</button>
+          <input type="range" id="replay-scrubber" min="0" max="1000" value="0" />
+          <span id="replay-time">0:00 / 0:00</span>
+          <select id="replay-speed">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+            <option value="4">4x</option>
+            <option value="8">8x</option>
+          </select>
+        </div>
+
+        <!-- Event timeline -->
+        <div id="event-timeline">
+          <h3>Event Timeline</h3>
+          <div id="timeline-events"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
