@@ -44,6 +44,20 @@ app.post("/api/auth/logout", (req, res) => {
 // ── Serve snippet publicly (sites need to load it without auth) ──────
 app.use("/snippet", express.static(path.join(__dirname, "..", "snippet")));
 
+// ── Health check (public - shows if Turso is connected) ──────────────
+app.get("/api/health", async (req, res) => {
+  try {
+    const count = await db.getSessionCount();
+    res.json({
+      ok: true,
+      db: process.env.TURSO_DATABASE_URL ? "turso" : "local-file",
+      sessions: count,
+    });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Event ingestion (public - no auth required) ──────────────────────
 app.post("/api/events", async (req, res) => {
   try {
