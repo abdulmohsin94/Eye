@@ -5,6 +5,15 @@
 
   const API = "";
 
+  // ── Auth helper: redirect to login on 401 ─────────────────────
+  function checkAuth(res) {
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return false;
+    }
+    return true;
+  }
+
   // ── DOM refs ─────────────────────────────────────────────────────
   const viewSessions = document.getElementById("view-sessions");
   const viewReplay = document.getElementById("view-replay");
@@ -61,6 +70,7 @@
     try {
       const params = getFilterParams();
       const res = await fetch(`${API}/api/sessions?${params.toString()}`);
+      if (!checkAuth(res)) return;
       const data = await res.json();
       renderSessions(data.sessions, data.total);
     } catch (e) {
@@ -129,6 +139,7 @@
   async function startReplay(sessionId) {
     try {
       const res = await fetch(`${API}/api/sessions/${sessionId}/events`);
+      if (!checkAuth(res)) return;
       const data = await res.json();
       currentEvents = data.events.map((e) => ({
         ...e,
@@ -389,7 +400,8 @@
   // ── Delete session ───────────────────────────────────────────────
   async function deleteSession(id) {
     if (!confirm("Delete this session and all its events?")) return;
-    await fetch(`${API}/api/sessions/${id}`, { method: "DELETE" });
+    const res = await fetch(`${API}/api/sessions/${id}`, { method: "DELETE" });
+    if (!checkAuth(res)) return;
     loadSessions();
   }
 
