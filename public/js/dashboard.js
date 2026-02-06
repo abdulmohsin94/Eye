@@ -31,22 +31,60 @@
   let isPlaying = false;
   let viewportScale = 1;
 
+  // ── Filter DOM refs ─────────────────────────────────────────────
+  const filterSearch = document.getElementById("filter-search");
+  const filterDateFrom = document.getElementById("filter-date-from");
+  const filterDateTo = document.getElementById("filter-date-to");
+  const filterMinEvents = document.getElementById("filter-min-events");
+  const btnClearFilters = document.getElementById("btn-clear-filters");
+  const resultsSummary = document.getElementById("results-summary");
+
   // ── Sessions List ────────────────────────────────────────────────
+  let debounceTimer = null;
+
+  function getFilterParams() {
+    const params = new URLSearchParams();
+    const search = filterSearch.value.trim();
+    const dateFrom = filterDateFrom.value;
+    const dateTo = filterDateTo.value;
+    const minEvents = filterMinEvents.value;
+
+    if (search) params.set("search", search);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (minEvents && parseInt(minEvents) > 0) params.set("minEvents", minEvents);
+
+    return params;
+  }
+
   async function loadSessions() {
     try {
-      const res = await fetch(`${API}/api/sessions`);
+      const params = getFilterParams();
+      const res = await fetch(`${API}/api/sessions?${params.toString()}`);
       const data = await res.json();
-      renderSessions(data.sessions);
+      renderSessions(data.sessions, data.total);
     } catch (e) {
       sessionsBody.innerHTML =
         '<tr><td colspan="6" class="empty-state">Failed to load sessions.</td></tr>';
+      resultsSummary.textContent = "";
     }
   }
 
-  function renderSessions(sessions) {
+  function renderSessions(sessions, total) {
+    const hasFilters = getFilterParams().toString().length > 0;
+
+    if (total !== undefined) {
+      resultsSummary.textContent = hasFilters
+        ? `${total} session${total !== 1 ? "s" : ""} found`
+        : `${total} total session${total !== 1 ? "s" : ""}`;
+    } else {
+      resultsSummary.textContent = "";
+    }
+
     if (!sessions || sessions.length === 0) {
-      sessionsBody.innerHTML =
-        '<tr><td colspan="6" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>';
+      sessionsBody.innerHTML = hasFilters
+        ? '<tr><td colspan="6" class="empty-state">No sessions match your filters.</td></tr>'
+        : '<tr><td colspan="6" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>';
       return;
     }
 
@@ -68,6 +106,24 @@
       )
       .join("");
   }
+
+  // ── Filter event listeners ─────────────────────────────────────
+  filterSearch.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(loadSessions, 300);
+  });
+
+  filterDateFrom.addEventListener("change", loadSessions);
+  filterDateTo.addEventListener("change", loadSessions);
+  filterMinEvents.addEventListener("change", loadSessions);
+
+  btnClearFilters.addEventListener("click", () => {
+    filterSearch.value = "";
+    filterDateFrom.value = "";
+    filterDateTo.value = "";
+    filterMinEvents.value = "";
+    loadSessions();
+  });
 
   // ── Replay ───────────────────────────────────────────────────────
   async function startReplay(sessionId) {
@@ -346,7 +402,7 @@
     loadSessions();
   });
 
-  btnRefresh.addEventListener("click", loadSessions);
+  btnRefresh.addEventListener("click", () => { loadSessions(); });
   btnPlay.addEventListener("click", play);
   btnPause.addEventListener("click", pause);
 

@@ -47,6 +47,27 @@
           <h1>Recorded Sessions</h1>
           <button id="btn-refresh" class="btn btn-sm">Refresh</button>
         </header>
+
+        <!-- Search & Filters -->
+        <div id="filter-bar">
+          <input type="text" id="filter-search" class="filter-input" placeholder="Search by URL or session ID..." />
+          <div class="filter-group">
+            <label class="filter-label">From</label>
+            <input type="date" id="filter-date-from" class="filter-input filter-date" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">To</label>
+            <input type="date" id="filter-date-to" class="filter-input filter-date" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Min events</label>
+            <input type="number" id="filter-min-events" class="filter-input filter-number" min="0" placeholder="0" />
+          </div>
+          <button id="btn-clear-filters" class="btn btn-sm">Clear</button>
+        </div>
+
+        <div id="results-summary"></div>
+
         <div class="table-wrap">
         <table id="sessions-table">
           <thead>

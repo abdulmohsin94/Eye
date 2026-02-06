@@ -102,6 +102,40 @@ module.exports = {
     return stmts.getSessionCount.get().count;
   },
 
+  searchSessions({ search, dateFrom, dateTo, minEvents, limit, offset }) {
+    const conditions = [];
+    const params = [];
+
+    if (search) {
+      conditions.push("(id LIKE ? OR url LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    if (dateFrom) {
+      conditions.push("first_seen >= ?");
+      params.push(dateFrom);
+    }
+    if (dateTo) {
+      conditions.push("first_seen <= ?");
+      params.push(dateTo + " 23:59:59");
+    }
+    if (minEvents) {
+      conditions.push("event_count >= ?");
+      params.push(minEvents);
+    }
+
+    const where = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
+
+    const rows = db
+      .prepare(`SELECT * FROM sessions ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset);
+
+    const total = db
+      .prepare(`SELECT COUNT(*) as count FROM sessions ${where}`)
+      .get(...params).count;
+
+    return { rows, total };
+  },
+
   getSession(id) {
     return stmts.getSession.get(id);
   },

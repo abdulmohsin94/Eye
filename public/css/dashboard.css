@@ -161,6 +161,54 @@ body {
   color: var(--primary);
 }
 
+/* ── Filter bar ─────────────────────────────────────────────────── */
+#filter-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filter-input {
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.filter-input:focus { border-color: var(--primary); }
+.filter-input::placeholder { color: var(--text-muted); }
+
+#filter-search { flex: 1; min-width: 200px; }
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.filter-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.filter-date { width: 150px; }
+.filter-number { width: 100px; }
+
+/* date/number input color scheme */
+.filter-input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+
+#results-summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
 /* ── Replay ──────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
@@ -350,6 +398,12 @@ body {
 
   .view-header { flex-wrap: wrap; }
   .view-header h1 { font-size: 18px; }
+
+  /* Filters: stack on mobile */
+  #filter-bar { flex-direction: column; align-items: stretch; }
+  #filter-search { min-width: unset; }
+  .filter-group { flex-direction: row; align-items: center; gap: 8px; }
+  .filter-date, .filter-number { flex: 1; width: auto; }
 
   /* Table: let it scroll horizontally */
   #sessions-table th,

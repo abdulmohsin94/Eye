@@ -67,11 +67,24 @@ app.use(requireAuth);
 // ── Static assets (protected) ────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "..", "public")));
 
-// ── List all sessions ────────────────────────────────────────────────
+// ── List all sessions (with optional search & filters) ───────────────
 app.get("/api/sessions", (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(100, parseInt(req.query.limit) || 25);
   const offset = (page - 1) * limit;
+  const search = req.query.search || "";
+  const dateFrom = req.query.dateFrom || "";
+  const dateTo = req.query.dateTo || "";
+  const minEvents = parseInt(req.query.minEvents) || 0;
+
+  const hasFilters = search || dateFrom || dateTo || minEvents;
+
+  if (hasFilters) {
+    const { rows, total } = db.searchSessions({
+      search, dateFrom, dateTo, minEvents, limit, offset,
+    });
+    return res.json({ sessions: rows, total, page, limit });
+  }
 
   const sessions = db.getSessions(limit, offset);
   const total = db.getSessionCount();
