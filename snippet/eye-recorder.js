@@ -168,6 +168,28 @@
     for (var i = 0; i < scripts.length; i++) {
       scripts[i].parentNode.removeChild(scripts[i]);
     }
+    // Fix lazy-loaded images: copy actual src from live DOM, remove lazy attrs
+    var liveImgs = document.querySelectorAll("img");
+    var cloneImgs = clone.querySelectorAll("img");
+    for (var j = 0; j < cloneImgs.length && j < liveImgs.length; j++) {
+      // Use the live currentSrc (the actually loaded image) if available
+      if (liveImgs[j].currentSrc && !cloneImgs[j].getAttribute("src")) {
+        cloneImgs[j].setAttribute("src", liveImgs[j].currentSrc);
+      }
+      // Copy data-src to src if src is empty/placeholder
+      var dataSrc = cloneImgs[j].getAttribute("data-src");
+      if (dataSrc && !cloneImgs[j].getAttribute("src")) {
+        cloneImgs[j].setAttribute("src", dataSrc);
+      }
+      var dataSrcset = cloneImgs[j].getAttribute("data-srcset");
+      if (dataSrcset) {
+        cloneImgs[j].setAttribute("srcset", dataSrcset);
+      }
+      // Remove lazy loading so images load immediately in replay
+      cloneImgs[j].removeAttribute("loading");
+      cloneImgs[j].removeAttribute("data-src");
+      cloneImgs[j].removeAttribute("data-srcset");
+    }
     var html = clone.outerHTML;
     remoteLog("info", "snapshot captured", { htmlSize: html.length, stripped: scripts.length + " scripts" });
     push("snapshot", {

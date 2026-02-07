@@ -388,6 +388,32 @@
         break;
 
       case "mutation":
+        try {
+          const doc = replayFrame.contentDocument;
+          if (!doc) break;
+          const changes = d.changes || [];
+          changes.forEach((c) => {
+            try {
+              if (c.action === "attr" && c.selector) {
+                const el = doc.querySelector(c.selector);
+                if (el && c.attr) el.setAttribute(c.attr, c.value || "");
+              } else if (c.action === "text" && c.selector) {
+                const el = doc.querySelector(c.selector);
+                if (el) el.textContent = c.text || "";
+              } else if (c.action === "add" && c.parent && c.html) {
+                const parent = doc.querySelector(c.parent);
+                if (parent) {
+                  const temp = doc.createElement("div");
+                  temp.innerHTML = c.html;
+                  while (temp.firstChild) parent.appendChild(temp.firstChild);
+                }
+              } else if (c.action === "remove" && c.selector) {
+                const el = doc.querySelector(c.selector);
+                if (el && el.parentNode) el.parentNode.removeChild(el);
+              }
+            } catch (ignore) {}
+          });
+        } catch (e) {}
         break;
 
       case "error":
