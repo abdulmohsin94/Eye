@@ -35,21 +35,57 @@
     if (buffer.length >= MAX_BUFFER) flush();
   }
 
-  function flush() {
-    if (buffer.length === 0) return;
+  var flushing = false;
+
+  function flush(useBeacon) {
+    if (buffer.length === 0 || flushing) return;
+    var events = buffer.splice(0);
     var payload = JSON.stringify({
       sessionId: sessionId,
       siteId: EYE_SITE_ID,
       url: location.href,
-      events: buffer.splice(0),
+      events: events,
     });
-    // Use text/plain to avoid CORS preflight on cross-origin sendBeacon
-    if (navigator.sendBeacon) {
+
+    // On page unload, use sendBeacon (fire-and-forget)
+    if (useBeacon && navigator.sendBeacon) {
       navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "text/plain" }));
+      return;
+    }
+
+    // Normal flush: use fetch with keepalive, retry buffer on failure
+    flushing = true;
+    if (typeof fetch !== "undefined") {
+      fetch(EYE_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: payload,
+        keepalive: true,
+      }).then(function (res) {
+        flushing = false;
+        if (!res.ok) {
+          // Put events back in buffer for retry
+          buffer = events.concat(buffer);
+        }
+      }).catch(function () {
+        flushing = false;
+        buffer = events.concat(buffer);
+      });
     } else {
+      // Fallback: XHR
       var xhr = new XMLHttpRequest();
       xhr.open("POST", EYE_ENDPOINT, true);
       xhr.setRequestHeader("Content-Type", "text/plain");
+      xhr.onloadend = function () {
+        flushing = false;
+        if (xhr.status < 200 || xhr.status >= 300) {
+          buffer = events.concat(buffer);
+        }
+      };
+      xhr.onerror = function () {
+        flushing = false;
+        buffer = events.concat(buffer);
+      };
       xhr.send(payload);
     }
   }
@@ -252,7 +288,7 @@
 
   window.addEventListener("beforeunload", function () {
     push("unload", {});
-    flush();
+    flush(true); // use sendBeacon for unload
   });
 
   // ── Frustration signals: rage clicks ───────────────────────────────
