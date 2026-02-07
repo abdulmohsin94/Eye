@@ -38,7 +38,7 @@
   var flushing = false;
 
   function flush(useBeacon) {
-    if (buffer.length === 0 || flushing) return;
+    if (buffer.length === 0) return;
     var events = buffer.splice(0);
     var payload = JSON.stringify({
       sessionId: sessionId,
@@ -53,40 +53,22 @@
       return;
     }
 
-    // Normal flush: use fetch with keepalive, retry buffer on failure
-    flushing = true;
-    if (typeof fetch !== "undefined") {
+    // Normal flush: use fetch, restore events on failure
+    try {
       fetch(EYE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: payload,
-        keepalive: true,
       }).then(function (res) {
-        flushing = false;
         if (!res.ok) {
-          // Put events back in buffer for retry
           buffer = events.concat(buffer);
         }
       }).catch(function () {
-        flushing = false;
         buffer = events.concat(buffer);
       });
-    } else {
-      // Fallback: XHR
-      var xhr = new XMLHttpRequest();
-      xhr.open("POST", EYE_ENDPOINT, true);
-      xhr.setRequestHeader("Content-Type", "text/plain");
-      xhr.onloadend = function () {
-        flushing = false;
-        if (xhr.status < 200 || xhr.status >= 300) {
-          buffer = events.concat(buffer);
-        }
-      };
-      xhr.onerror = function () {
-        flushing = false;
-        buffer = events.concat(buffer);
-      };
-      xhr.send(payload);
+    } catch (e) {
+      // Sync error (e.g. invalid URL) — restore events
+      buffer = events.concat(buffer);
     }
   }
 
