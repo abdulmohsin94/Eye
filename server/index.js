@@ -53,15 +53,28 @@ app.use("/snippet", express.static(path.join(__dirname, "..", "snippet"), {
   },
 }));
 
+// ── All-in-one recorder JS per site (config baked in, no external deps) ──
+const fs = require("fs");
+const recorderPath = path.join(__dirname, "..", "snippet", "eye-recorder.js");
+
+app.get("/api/recorder/:siteId", (req, res) => {
+  const siteId = req.params.siteId;
+  const host = `${req.protocol}://${req.get("host")}`;
+  const recorderCode = fs.readFileSync(recorderPath, "utf-8");
+  // Prepend config so the recorder picks it up — single file, zero race conditions
+  const full = `window.__EYE_SITE_ID="${siteId}";window.__EYE_ENDPOINT="${host}/api/events";\n${recorderCode}`;
+  res.set("Content-Type", "application/javascript");
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.send(full);
+});
+
 // ── GTM-ready snippet HTML (public) ─────────────────────────────────
 app.get("/api/snippet/:siteId", async (req, res) => {
   const siteId = req.params.siteId;
   const host = `${req.protocol}://${req.get("host")}`;
-  // Use dynamic script injection — GTM innerHTML doesn't execute <script src>
+  // Single script tag that dynamically loads the all-in-one recorder
   const html = `<script>
-window.__EYE_SITE_ID = "${siteId}";
-window.__EYE_ENDPOINT = "${host}/api/events";
-(function(){var s=document.createElement("script");s.src="${host}/snippet/eye-recorder.js";document.head.appendChild(s);})();
+(function(){var s=document.createElement("script");s.src="${host}/api/recorder/${siteId}";document.head.appendChild(s);})();
 </script>`;
   res.type("text/plain").send(html);
 });

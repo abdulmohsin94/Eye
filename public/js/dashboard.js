@@ -634,10 +634,8 @@
               Paste this as a <strong>Custom HTML</strong> tag in GTM, or add directly to your site:
             </div>
             <div class="snippet-code" id="code-${s.id}">&lt;script&gt;
-window.__EYE_SITE_ID = "${s.id}";
-window.__EYE_ENDPOINT = "${host}/api/events";
 (function(){var s=document.createElement("script");
-s.src="${host}/snippet/eye-recorder.js";
+s.src="${host}/api/recorder/${s.id}";
 document.head.appendChild(s);})();
 &lt;/script&gt;</div>
             <button class="btn btn-sm" style="margin-top:8px" onclick="window.__eye_copy('${s.id}')">Copy</button>
@@ -661,7 +659,7 @@ document.head.appendChild(s);})();
   // Copy snippet to clipboard
   window.__eye_copy = (id) => {
     const host = location.origin;
-    const text = `<script>\nwindow.__EYE_SITE_ID = "${id}";\nwindow.__EYE_ENDPOINT = "${host}/api/events";\n(function(){var s=document.createElement("script");s.src="${host}/snippet/eye-recorder.js";document.head.appendChild(s);})();\n</script>`;
+    const text = `<script>\n(function(){var s=document.createElement("script");s.src="${host}/api/recorder/${id}";document.head.appendChild(s);})();\n</script>`;
     navigator.clipboard.writeText(text).then(() => {
       alert("Snippet copied to clipboard!");
     });
