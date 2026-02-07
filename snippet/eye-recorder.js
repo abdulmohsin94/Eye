@@ -4,6 +4,7 @@
   // ── Configuration ──────────────────────────────────────────────────
   var EYE_ENDPOINT =
     window.__EYE_ENDPOINT || (location.origin + "/api/events");
+  var EYE_SITE_ID = window.__EYE_SITE_ID || "";
   var FLUSH_INTERVAL = 2000; // ms between batch sends
   var MAX_BUFFER = 200; // flush if buffer exceeds this
 
@@ -38,6 +39,7 @@
     if (buffer.length === 0) return;
     var payload = JSON.stringify({
       sessionId: sessionId,
+      siteId: EYE_SITE_ID,
       url: location.href,
       events: buffer.splice(0),
     });

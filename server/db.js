@@ -16,8 +16,15 @@ let initialized = false;
 async function init() {
   if (initialized) return;
   await client.batch([
+    `CREATE TABLE IF NOT EXISTS sites (
+      id         TEXT PRIMARY KEY,
+      name       TEXT NOT NULL,
+      domain     TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    )`,
     `CREATE TABLE IF NOT EXISTS sessions (
       id           TEXT PRIMARY KEY,
+      site_id      TEXT DEFAULT '',
       url          TEXT,
       event_count  INTEGER DEFAULT 0,
       first_seen   TEXT DEFAULT (datetime('now')),
@@ -32,7 +39,14 @@ async function init() {
       data       TEXT NOT NULL
     )`,
     `CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, seq)`,
+    `CREATE INDEX IF NOT EXISTS idx_sessions_site ON sessions(site_id)`,
   ]);
+  // Migrate: add site_id column if missing (existing DBs)
+  try {
+    await client.execute("SELECT site_id FROM sessions LIMIT 1");
+  } catch (e) {
+    await client.execute("ALTER TABLE sessions ADD COLUMN site_id TEXT DEFAULT ''");
+  }
   initialized = true;
 }
 
@@ -40,12 +54,12 @@ async function init() {
 module.exports = {
   init,
 
-  async upsertSession(sessionId, url) {
+  async upsertSession(sessionId, url, siteId) {
     await init();
     await client.execute({
-      sql: `INSERT INTO sessions (id, url) VALUES (?, ?)
-            ON CONFLICT(id) DO UPDATE SET url = excluded.url, last_seen = datetime('now')`,
-      args: [sessionId, url],
+      sql: `INSERT INTO sessions (id, url, site_id) VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET url = excluded.url, site_id = COALESCE(NULLIF(excluded.site_id, ''), site_id), last_seen = datetime('now')`,
+      args: [sessionId, url, siteId || ""],
     });
   },
 
@@ -78,11 +92,15 @@ module.exports = {
     return Number(result.rows[0].count);
   },
 
-  async searchSessions({ search, dateFrom, dateTo, minEvents, limit, offset }) {
+  async searchSessions({ search, dateFrom, dateTo, minEvents, siteId, limit, offset }) {
     await init();
     const conditions = [];
     const args = [];
 
+    if (siteId) {
+      conditions.push("site_id = ?");
+      args.push(siteId);
+    }
     if (search) {
       conditions.push("(id LIKE ? OR url LIKE ?)");
       args.push(`%${search}%`, `%${search}%`);
@@ -143,5 +161,47 @@ module.exports = {
       { sql: "DELETE FROM events WHERE session_id = ?", args: [id] },
       { sql: "DELETE FROM sessions WHERE id = ?", args: [id] },
     ]);
+  },
+
+  // ── Site CRUD ──────────────────────────────────────────────────────
+  async createSite(id, name, domain) {
+    await init();
+    await client.execute({
+      sql: "INSERT INTO sites (id, name, domain) VALUES (?, ?, ?)",
+      args: [id, name, domain || ""],
+    });
+  },
+
+  async getSites() {
+    await init();
+    const result = await client.execute(
+      "SELECT s.*, (SELECT COUNT(*) FROM sessions WHERE site_id = s.id) as session_count FROM sites s ORDER BY created_at DESC"
+    );
+    return result.rows;
+  },
+
+  async getSite(id) {
+    await init();
+    const result = await client.execute({
+      sql: "SELECT * FROM sites WHERE id = ?",
+      args: [id],
+    });
+    return result.rows[0] || null;
+  },
+
+  async updateSite(id, name, domain) {
+    await init();
+    await client.execute({
+      sql: "UPDATE sites SET name = ?, domain = ? WHERE id = ?",
+      args: [name, domain || "", id],
+    });
+  },
+
+  async deleteSite(id) {
+    await init();
+    await client.execute({
+      sql: "DELETE FROM sites WHERE id = ?",
+      args: [id],
+    });
   },
 };

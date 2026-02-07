@@ -33,8 +33,11 @@
         <span class="logo-text">Eye</span>
       </div>
       <nav>
-        <a href="/" class="nav-link active" data-view="sessions">
+        <a href="#" class="nav-link active" data-view="sessions">
           <span class="nav-icon">&#9654;</span> Sessions
+        </a>
+        <a href="#" class="nav-link" data-view="sites">
+          <span class="nav-icon">&#9670;</span> Sites
         </a>
       </nav>
     </aside>
@@ -50,6 +53,12 @@
 
         <!-- Search & Filters -->
         <div id="filter-bar">
+          <div class="filter-group">
+            <label class="filter-label">Site</label>
+            <select id="filter-site" class="filter-input filter-site">
+              <option value="">All sites</option>
+            </select>
+          </div>
           <input type="text" id="filter-search" class="filter-input" placeholder="Search by URL or session ID..." />
           <div class="filter-group">
             <label class="filter-label">From</label>
@@ -121,6 +130,35 @@
           <h3>Event Timeline</h3>
           <div id="timeline-events"></div>
         </div>
+      </div>
+      <!-- Sites management view -->
+      <div id="view-sites" class="hidden">
+        <header class="view-header">
+          <h1>Manage Sites</h1>
+          <button id="btn-add-site" class="btn btn-sm btn-primary">+ Add Site</button>
+        </header>
+
+        <!-- Add/Edit site form -->
+        <div id="site-form" class="hidden card">
+          <h3 id="site-form-title">Add New Site</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="filter-label">Site Name</label>
+              <input type="text" id="site-name" class="filter-input" placeholder="My Client Site" />
+            </div>
+            <div class="form-group">
+              <label class="filter-label">Domain (optional)</label>
+              <input type="text" id="site-domain" class="filter-input" placeholder="example.com" />
+            </div>
+          </div>
+          <div class="form-actions">
+            <button id="btn-save-site" class="btn btn-primary">Save</button>
+            <button id="btn-cancel-site" class="btn">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Sites list -->
+        <div id="sites-list"></div>
       </div>
     </main>
   </div>

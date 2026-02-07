@@ -44,6 +44,18 @@ app.post("/api/auth/logout", (req, res) => {
 // ── Serve snippet publicly (sites need to load it without auth) ──────
 app.use("/snippet", express.static(path.join(__dirname, "..", "snippet")));
 
+// ── GTM-ready snippet HTML (public) ─────────────────────────────────
+app.get("/api/snippet/:siteId", async (req, res) => {
+  const siteId = req.params.siteId;
+  const host = `${req.protocol}://${req.get("host")}`;
+  const html = `<script>
+window.__EYE_SITE_ID = "${siteId}";
+window.__EYE_ENDPOINT = "${host}/api/events";
+</script>
+<script src="${host}/snippet/eye-recorder.js"></script>`;
+  res.type("text/plain").send(html);
+});
+
 // ── Health check (public - shows if Turso is connected) ──────────────
 app.get("/api/health", async (req, res) => {
   try {
@@ -61,11 +73,11 @@ app.get("/api/health", async (req, res) => {
 // ── Event ingestion (public - no auth required) ──────────────────────
 app.post("/api/events", async (req, res) => {
   try {
-    const { sessionId, url, events } = req.body;
+    const { sessionId, siteId, url, events } = req.body;
     if (!sessionId || !events || !Array.isArray(events)) {
       return res.status(400).json({ error: "Invalid payload" });
     }
-    await db.upsertSession(sessionId, url);
+    await db.upsertSession(sessionId, url, siteId || "");
     await db.insertEvents(sessionId, events);
     res.json({ ok: true, count: events.length });
   } catch (e) {
@@ -91,6 +103,53 @@ app.use(requireAuth);
 // ── Static assets (protected) ────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "..", "public")));
 
+// ── Site management ──────────────────────────────────────────────────
+app.get("/api/sites", async (req, res) => {
+  try {
+    const sites = await db.getSites();
+    res.json({ sites });
+  } catch (e) {
+    console.error("List sites error:", e);
+    res.status(500).json({ error: "Failed to load sites" });
+  }
+});
+
+app.post("/api/sites", async (req, res) => {
+  try {
+    const { name, domain } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+    const id = require("crypto").randomBytes(12).toString("hex");
+    await db.createSite(id, name, domain);
+    const site = await db.getSite(id);
+    res.json({ ok: true, site });
+  } catch (e) {
+    console.error("Create site error:", e);
+    res.status(500).json({ error: "Failed to create site" });
+  }
+});
+
+app.put("/api/sites/:id", async (req, res) => {
+  try {
+    const { name, domain } = req.body;
+    if (!name) return res.status(400).json({ error: "Name is required" });
+    await db.updateSite(req.params.id, name, domain);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Update site error:", e);
+    res.status(500).json({ error: "Failed to update site" });
+  }
+});
+
+app.delete("/api/sites/:id", async (req, res) => {
+  try {
+    await db.deleteSite(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Delete site error:", e);
+    res.status(500).json({ error: "Failed to delete site" });
+  }
+});
+
 // ── List all sessions (with optional search & filters) ───────────────
 app.get("/api/sessions", async (req, res) => {
   try {
@@ -101,12 +160,13 @@ app.get("/api/sessions", async (req, res) => {
     const dateFrom = req.query.dateFrom || "";
     const dateTo = req.query.dateTo || "";
     const minEvents = parseInt(req.query.minEvents) || 0;
+    const siteId = req.query.siteId || "";
 
-    const hasFilters = search || dateFrom || dateTo || minEvents;
+    const hasFilters = search || dateFrom || dateTo || minEvents || siteId;
 
     if (hasFilters) {
       const { rows, total } = await db.searchSessions({
-        search, dateFrom, dateTo, minEvents, limit, offset,
+        search, dateFrom, dateTo, minEvents, siteId, limit, offset,
       });
       return res.json({ sessions: rows, total, page, limit });
     }

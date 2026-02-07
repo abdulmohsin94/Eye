@@ -209,6 +209,74 @@ body {
   margin-bottom: 12px;
 }
 
+/* ── Cards / Forms ───────────────────────────────────────────────── */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.card h3 { font-size: 16px; margin-bottom: 16px; }
+.form-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.form-group .filter-input { width: 100%; }
+.form-actions { display: flex; gap: 8px; }
+
+/* ── Site cards ──────────────────────────────────────────────────── */
+.site-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: border-color 0.15s;
+}
+.site-card:hover { border-color: var(--primary); }
+.site-info { flex: 1; min-width: 0; }
+.site-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; }
+.site-domain { font-size: 13px; color: var(--text-muted); }
+.site-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.site-id-badge {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  color: var(--primary);
+  background: rgba(99, 102, 241, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.site-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Snippet code block */
+.snippet-block {
+  margin-top: 12px;
+  display: none;
+}
+.snippet-block.open { display: block; }
+.snippet-code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+  position: relative;
+}
+.btn-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.filter-site { min-width: 150px; }
+
 /* ── Replay ──────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
@@ -455,6 +523,12 @@ body {
   #sessions-table td { white-space: nowrap; padding: 10px 12px; font-size: 13px; }
 
   .session-url { max-width: 160px; }
+
+  /* Forms & cards stack on mobile */
+  .form-row { flex-direction: column; }
+  .site-card { flex-direction: column; align-items: stretch; }
+  .site-actions { justify-content: flex-end; }
+  .filter-site { min-width: unset; width: 100%; }
 
   /* Replay: auto-enter fullscreen on mobile */
   #view-replay {

@@ -43,22 +43,38 @@
 
   // ── Filter DOM refs ─────────────────────────────────────────────
   const filterSearch = document.getElementById("filter-search");
+  const filterSite = document.getElementById("filter-site");
   const filterDateFrom = document.getElementById("filter-date-from");
   const filterDateTo = document.getElementById("filter-date-to");
   const filterMinEvents = document.getElementById("filter-min-events");
   const btnClearFilters = document.getElementById("btn-clear-filters");
   const resultsSummary = document.getElementById("results-summary");
 
+  // ── Site management DOM refs ──────────────────────────────────
+  const viewSites = document.getElementById("view-sites");
+  const btnAddSite = document.getElementById("btn-add-site");
+  const siteForm = document.getElementById("site-form");
+  const siteFormTitle = document.getElementById("site-form-title");
+  const siteNameInput = document.getElementById("site-name");
+  const siteDomainInput = document.getElementById("site-domain");
+  const btnSaveSite = document.getElementById("btn-save-site");
+  const btnCancelSite = document.getElementById("btn-cancel-site");
+  const sitesList = document.getElementById("sites-list");
+  let editingSiteId = null;
+  let sitesCache = [];
+
   // ── Sessions List ────────────────────────────────────────────────
   let debounceTimer = null;
 
   function getFilterParams() {
     const params = new URLSearchParams();
+    const siteId = filterSite.value;
     const search = filterSearch.value.trim();
     const dateFrom = filterDateFrom.value;
     const dateTo = filterDateTo.value;
     const minEvents = filterMinEvents.value;
 
+    if (siteId) params.set("siteId", siteId);
     if (search) params.set("search", search);
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
@@ -124,11 +140,13 @@
     debounceTimer = setTimeout(loadSessions, 300);
   });
 
+  filterSite.addEventListener("change", loadSessions);
   filterDateFrom.addEventListener("change", loadSessions);
   filterDateTo.addEventListener("change", loadSessions);
   filterMinEvents.addEventListener("change", loadSessions);
 
   btnClearFilters.addEventListener("click", () => {
+    filterSite.value = "";
     filterSearch.value = "";
     filterDateFrom.value = "";
     filterDateTo.value = "";
@@ -530,6 +548,172 @@
     link.addEventListener("click", closeSidebar);
   });
 
+  // ── View navigation ────────────────────────────────────────────
+  const allViews = [viewSessions, viewReplay, viewSites];
+  const navLinks = document.querySelectorAll(".nav-link[data-view]");
+
+  function showView(viewId) {
+    allViews.forEach((v) => v.classList.add("hidden"));
+    navLinks.forEach((l) => l.classList.remove("active"));
+    const target = document.getElementById("view-" + viewId);
+    if (target) target.classList.remove("hidden");
+    const link = document.querySelector(`.nav-link[data-view="${viewId}"]`);
+    if (link) link.classList.add("active");
+
+    if (viewId === "sessions") loadSessions();
+    if (viewId === "sites") loadSites();
+  }
+
+  navLinks.forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      showView(link.dataset.view);
+      closeSidebar();
+    });
+  });
+
+  // ── Site management ───────────────────────────────────────────
+  async function loadSites() {
+    try {
+      const res = await fetch(`${API}/api/sites`);
+      if (!checkAuth(res)) return;
+      const data = await res.json();
+      sitesCache = data.sites || [];
+      renderSites(sitesCache);
+      populateSiteFilter(sitesCache);
+    } catch (e) {
+      sitesList.innerHTML = '<div class="empty-state">Failed to load sites.</div>';
+    }
+  }
+
+  async function populateSiteFilter(sites) {
+    const current = filterSite.value;
+    filterSite.innerHTML = '<option value="">All sites</option>';
+    (sites || sitesCache).forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.name;
+      filterSite.appendChild(opt);
+    });
+    filterSite.value = current;
+  }
+
+  function renderSites(sites) {
+    if (!sites || sites.length === 0) {
+      sitesList.innerHTML = '<div class="empty-state" style="padding:48px;text-align:center;color:var(--text-muted)">No sites yet. Click "+ Add Site" to create one and get a tracking snippet.</div>';
+      return;
+    }
+
+    const host = location.origin;
+    sitesList.innerHTML = sites.map((s) => `
+      <div class="site-card" data-id="${s.id}">
+        <div class="site-info">
+          <div class="site-name">${esc(s.name)}</div>
+          ${s.domain ? `<div class="site-domain">${esc(s.domain)}</div>` : ""}
+          <div class="site-meta">
+            <span class="site-id-badge">${s.id}</span>
+            &middot; ${s.session_count || 0} session${s.session_count !== 1 ? "s" : ""}
+            &middot; Created ${formatDate(s.created_at)}
+          </div>
+          <div class="snippet-block" id="snippet-${s.id}">
+            <div style="margin-top:8px;margin-bottom:6px;font-size:12px;color:var(--text-muted)">
+              Paste this as a <strong>Custom HTML</strong> tag in GTM, or add directly to your site:
+            </div>
+            <div class="snippet-code" id="code-${s.id}">&lt;script&gt;
+window.__EYE_SITE_ID = "${s.id}";
+window.__EYE_ENDPOINT = "${host}/api/events";
+&lt;/script&gt;
+&lt;script src="${host}/snippet/eye-recorder.js"&gt;&lt;/script&gt;</div>
+            <button class="btn btn-sm" style="margin-top:8px" onclick="window.__eye_copy('${s.id}')">Copy</button>
+          </div>
+        </div>
+        <div class="site-actions">
+          <button class="btn btn-sm btn-primary" onclick="window.__eye_snippet_toggle('${s.id}')">Snippet</button>
+          <button class="btn btn-sm" onclick="window.__eye_edit_site('${s.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__eye_delete_site('${s.id}')">Delete</button>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // Show/hide snippet
+  window.__eye_snippet_toggle = (id) => {
+    const el = document.getElementById("snippet-" + id);
+    if (el) el.classList.toggle("open");
+  };
+
+  // Copy snippet to clipboard
+  window.__eye_copy = (id) => {
+    const host = location.origin;
+    const text = `<script>\nwindow.__EYE_SITE_ID = "${id}";\nwindow.__EYE_ENDPOINT = "${host}/api/events";\n</script>\n<script src="${host}/snippet/eye-recorder.js"></script>`;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Snippet copied to clipboard!");
+    });
+  };
+
+  // Add site
+  btnAddSite.addEventListener("click", () => {
+    editingSiteId = null;
+    siteFormTitle.textContent = "Add New Site";
+    siteNameInput.value = "";
+    siteDomainInput.value = "";
+    siteForm.classList.remove("hidden");
+  });
+
+  btnCancelSite.addEventListener("click", () => {
+    siteForm.classList.add("hidden");
+    editingSiteId = null;
+  });
+
+  // Save site (create or update)
+  btnSaveSite.addEventListener("click", async () => {
+    const name = siteNameInput.value.trim();
+    const domain = siteDomainInput.value.trim();
+    if (!name) { alert("Site name is required."); return; }
+
+    try {
+      if (editingSiteId) {
+        const res = await fetch(`${API}/api/sites/${editingSiteId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, domain }),
+        });
+        if (!checkAuth(res)) return;
+      } else {
+        const res = await fetch(`${API}/api/sites`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, domain }),
+        });
+        if (!checkAuth(res)) return;
+      }
+      siteForm.classList.add("hidden");
+      editingSiteId = null;
+      loadSites();
+    } catch (e) {
+      alert("Failed to save site.");
+    }
+  });
+
+  // Edit site
+  window.__eye_edit_site = (id) => {
+    const site = sitesCache.find((s) => s.id === id);
+    if (!site) return;
+    editingSiteId = id;
+    siteFormTitle.textContent = "Edit Site";
+    siteNameInput.value = site.name;
+    siteDomainInput.value = site.domain || "";
+    siteForm.classList.remove("hidden");
+  };
+
+  // Delete site
+  window.__eye_delete_site = async (id) => {
+    if (!confirm("Delete this site? Sessions will remain but won't be linked.")) return;
+    const res = await fetch(`${API}/api/sites/${id}`, { method: "DELETE" });
+    if (!checkAuth(res)) return;
+    loadSites();
+  };
+
   // ── Keyboard shortcuts ──────────────────────────────────────────
   document.addEventListener("keydown", (e) => {
     if (viewReplay.classList.contains("hidden")) return;
@@ -544,4 +728,6 @@
 
   // ── Init ─────────────────────────────────────────────────────────
   loadSessions();
+  // Populate site filter dropdown on load
+  fetch(`${API}/api/sites`).then(r => r.json()).then(d => populateSiteFilter(d.sites || [])).catch(() => {});
 })();
