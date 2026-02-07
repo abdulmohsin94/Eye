@@ -44,7 +44,14 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 // ── Serve snippet publicly (sites need to load it without auth) ──────
-app.use("/snippet", express.static(path.join(__dirname, "..", "snippet")));
+// CRITICAL: no-cache so client browsers always get the latest snippet version
+app.use("/snippet", express.static(path.join(__dirname, "..", "snippet"), {
+  setHeaders(res) {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  },
+}));
 
 // ── GTM-ready snippet HTML (public) ─────────────────────────────────
 app.get("/api/snippet/:siteId", async (req, res) => {
@@ -72,8 +79,19 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
+// ── CORS preflight for /api/events (needed for fetch fallback) ────────
+app.options("/api/events", (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Access-Control-Max-Age", "86400");
+  res.status(204).end();
+});
+
 // ── Event ingestion (public - no auth required) ──────────────────────
 app.post("/api/events", async (req, res) => {
+  // Allow cross-origin fetch fallback
+  res.set("Access-Control-Allow-Origin", "*");
   try {
     // Body may arrive as text/plain string (to avoid CORS preflight) or parsed JSON
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
@@ -83,11 +101,26 @@ app.post("/api/events", async (req, res) => {
     }
     await db.upsertSession(sessionId, url, siteId || "");
     await db.insertEvents(sessionId, events);
+    console.log(`[Eye] Stored ${events.length} events for session ${sessionId.slice(0, 8)}... (site: ${siteId || "self"})`);
     res.json({ ok: true, count: events.length });
   } catch (e) {
     console.error("Event ingestion error:", e);
     res.status(500).json({ error: "Failed to store events" });
   }
+});
+
+// ── Public debug endpoint (test connectivity from any site) ──────────
+app.get("/api/debug/ping", (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.json({ ok: true, ts: new Date().toISOString(), msg: "Eye endpoint is reachable" });
+});
+
+app.post("/api/debug/ping", (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+  const len = body ? body.length : 0;
+  console.log(`[Eye Debug] Received test ping, body size: ${len} bytes`);
+  res.json({ ok: true, received: len, ts: new Date().toISOString() });
 });
 
 // ── Auth middleware for everything below ─────────────────────────────

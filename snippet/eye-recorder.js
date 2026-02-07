@@ -8,6 +8,44 @@
   var FLUSH_INTERVAL = 2000; // ms between batch sends
   var MAX_BUFFER = 200; // flush if buffer exceeds this
 
+  // ── Debug mode ─────────────────────────────────────────────────────
+  // Activate by adding ?eye_debug=1 to any page URL
+  var isDebug = /[?&]eye_debug=1/.test(location.search);
+  var debugEl = null;
+  var debugSent = 0;
+  var debugFail = 0;
+
+  function initDebugOverlay() {
+    if (!isDebug) return;
+    var target = document.body || document.documentElement;
+    if (!target) {
+      // Body not ready yet, retry after DOM load
+      document.addEventListener("DOMContentLoaded", function () {
+        initDebugOverlay();
+      });
+      return;
+    }
+    debugEl = document.createElement("div");
+    debugEl.id = "eye-debug";
+    debugEl.style.cssText = "position:fixed;bottom:8px;right:8px;z-index:999999;"
+      + "background:#111;color:#0f0;font:11px/1.4 monospace;padding:8px 12px;"
+      + "border-radius:8px;opacity:0.9;max-width:280px;pointer-events:none;";
+    debugEl.innerHTML = "Eye: loading...";
+    target.appendChild(debugEl);
+    debugLog("ready");
+  }
+
+  function debugLog(msg) {
+    if (!debugEl) return;
+    debugEl.innerHTML = "<b>Eye Debug</b><br>"
+      + "SID: " + sessionId.slice(0, 8) + "...<br>"
+      + "Site: " + (EYE_SITE_ID || "(self)") + "<br>"
+      + "EP: " + EYE_ENDPOINT + "<br>"
+      + "Buf: " + buffer.length + "<br>"
+      + "Sent: " + debugSent + " | Fail: " + debugFail + "<br>"
+      + msg;
+  }
+
   // ── Session bootstrapping ──────────────────────────────────────────
   var sessionId =
     sessionStorage.getItem("_eye_sid") || crypto.randomUUID();
@@ -35,8 +73,12 @@
     if (buffer.length >= MAX_BUFFER) flush();
   }
 
-  function flush(useBeacon) {
-    if (buffer.length === 0) return;
+  function flush() {
+    if (buffer.length === 0) {
+      if (isDebug) debugLog("idle");
+      return;
+    }
+    var count = buffer.length;
     var events = buffer.splice(0);
     var payload = JSON.stringify({
       sessionId: sessionId,
@@ -48,8 +90,13 @@
     // Primary: sendBeacon with text/plain (no CORS preflight, works cross-origin)
     if (navigator.sendBeacon) {
       var ok = navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "text/plain" }));
-      if (ok) return;
+      if (ok) {
+        debugSent += count;
+        if (isDebug) debugLog("beacon OK (" + count + ")");
+        return;
+      }
       // sendBeacon failed (payload too large?) — fall through to fetch
+      if (isDebug) debugLog("beacon FAIL, trying fetch...");
     }
 
     // Fallback: fetch without keepalive
@@ -58,8 +105,22 @@
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: payload,
-      }).catch(function () {});
-    } catch (e) {}
+      }).then(function (r) {
+        if (r.ok) {
+          debugSent += count;
+          if (isDebug) debugLog("fetch OK (" + count + ")");
+        } else {
+          debugFail += count;
+          if (isDebug) debugLog("fetch HTTP " + r.status);
+        }
+      }).catch(function (err) {
+        debugFail += count;
+        if (isDebug) debugLog("fetch ERR: " + (err.message || err));
+      });
+    } catch (e) {
+      debugFail += count;
+      if (isDebug) debugLog("fetch THROW: " + (e.message || e));
+    }
   }
 
   // ── DOM Snapshot ───────────────────────────────────────────────────
@@ -152,6 +213,24 @@
     true
   );
 
+  // ── Touch tracking (for mobile sessions) ──────────────────────────
+  document.addEventListener(
+    "touchstart",
+    function (e) {
+      if (e.touches.length > 0) {
+        var touch = e.touches[0];
+        push("click", {
+          x: Math.round(touch.clientX),
+          y: Math.round(touch.clientY),
+          selector: getSelector(e.target),
+          tag: e.target.tagName,
+          text: (e.target.textContent || "").slice(0, 80),
+        });
+      }
+    },
+    true
+  );
+
   // ── Scroll tracking ────────────────────────────────────────────────
   var scrollTimer = null;
   window.addEventListener(
@@ -192,7 +271,7 @@
         /credit|card|cvv|ssn|secret|token/i.test(el.name || el.id || "");
       push("input", {
         selector: getSelector(el),
-        value: isSensitive ? "•".repeat(val.length) : val,
+        value: isSensitive ? "\u2022".repeat(val.length) : val,
         masked: isSensitive,
       });
     },
@@ -260,7 +339,7 @@
 
   window.addEventListener("beforeunload", function () {
     push("unload", {});
-    flush(true); // use sendBeacon for unload
+    flush();
   });
 
   // ── Frustration signals: rage clicks ───────────────────────────────
@@ -302,10 +381,14 @@
   // even if snapshot/style capture fails
   setInterval(flush, FLUSH_INTERVAL);
 
+  // Init debug overlay
+  initDebugOverlay();
+
   try {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", function () {
         try { captureSnapshot(); captureStyles(); } catch (e) {}
+        if (isDebug && !debugEl) initDebugOverlay();
       });
     } else {
       captureSnapshot();
