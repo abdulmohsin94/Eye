@@ -636,8 +636,10 @@
             <div class="snippet-code" id="code-${s.id}">&lt;script&gt;
 window.__EYE_SITE_ID = "${s.id}";
 window.__EYE_ENDPOINT = "${host}/api/events";
-&lt;/script&gt;
-&lt;script src="${host}/snippet/eye-recorder.js"&gt;&lt;/script&gt;</div>
+(function(){var s=document.createElement("script");
+s.src="${host}/snippet/eye-recorder.js";
+document.head.appendChild(s);})();
+&lt;/script&gt;</div>
             <button class="btn btn-sm" style="margin-top:8px" onclick="window.__eye_copy('${s.id}')">Copy</button>
           </div>
         </div>
@@ -659,7 +661,7 @@ window.__EYE_ENDPOINT = "${host}/api/events";
   // Copy snippet to clipboard
   window.__eye_copy = (id) => {
     const host = location.origin;
-    const text = `<script>\nwindow.__EYE_SITE_ID = "${id}";\nwindow.__EYE_ENDPOINT = "${host}/api/events";\n</script>\n<script src="${host}/snippet/eye-recorder.js"></script>`;
+    const text = `<script>\nwindow.__EYE_SITE_ID = "${id}";\nwindow.__EYE_ENDPOINT = "${host}/api/events";\n(function(){var s=document.createElement("script");s.src="${host}/snippet/eye-recorder.js";document.head.appendChild(s);})();\n</script>`;
     navigator.clipboard.writeText(text).then(() => {
       alert("Snippet copied to clipboard!");
     });

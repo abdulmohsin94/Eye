@@ -57,11 +57,12 @@ app.use("/snippet", express.static(path.join(__dirname, "..", "snippet"), {
 app.get("/api/snippet/:siteId", async (req, res) => {
   const siteId = req.params.siteId;
   const host = `${req.protocol}://${req.get("host")}`;
+  // Use dynamic script injection — GTM innerHTML doesn't execute <script src>
   const html = `<script>
 window.__EYE_SITE_ID = "${siteId}";
 window.__EYE_ENDPOINT = "${host}/api/events";
-</script>
-<script src="${host}/snippet/eye-recorder.js"></script>`;
+(function(){var s=document.createElement("script");s.src="${host}/snippet/eye-recorder.js";document.head.appendChild(s);})();
+</script>`;
   res.type("text/plain").send(html);
 });
 
