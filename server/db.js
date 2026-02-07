@@ -57,6 +57,20 @@ async function init() {
     // Index may already exist
   }
 
+  // Step 4: Debug logs table
+  try {
+    await client.execute(`CREATE TABLE IF NOT EXISTS debug_logs (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      site_id    TEXT DEFAULT '',
+      session_id TEXT DEFAULT '',
+      level      TEXT DEFAULT 'info',
+      message    TEXT NOT NULL,
+      data       TEXT DEFAULT '',
+      url        TEXT DEFAULT '',
+      created_at TEXT DEFAULT (datetime('now'))
+    )`);
+  } catch (e) {}
+
   initialized = true;
 }
 
@@ -217,5 +231,28 @@ module.exports = {
       sql: "DELETE FROM sites WHERE id = ?",
       args: [id],
     });
+  },
+
+  // ── Debug logs ────────────────────────────────────────────────────
+  async insertDebugLog({ siteId, sessionId, level, message, data, url }) {
+    await init();
+    await client.execute({
+      sql: "INSERT INTO debug_logs (site_id, session_id, level, message, data, url) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [siteId || "", sessionId || "", level || "info", message, data || "", url || ""],
+    });
+  },
+
+  async getDebugLogs(limit = 50) {
+    await init();
+    const result = await client.execute({
+      sql: "SELECT * FROM debug_logs ORDER BY id DESC LIMIT ?",
+      args: [limit],
+    });
+    return result.rows;
+  },
+
+  async clearDebugLogs() {
+    await init();
+    await client.execute("DELETE FROM debug_logs");
   },
 };

@@ -137,6 +137,18 @@ app.post("/api/debug/ping", (req, res) => {
   res.json({ ok: true, received: len, ts: new Date().toISOString() });
 });
 
+// ── Remote debug log ingestion (public - client sites send logs here) ──
+app.post("/api/debug/log", async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    await db.insertDebugLog(body);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Auth middleware for everything below ─────────────────────────────
 function requireAuth(req, res, next) {
   const token = req.cookies.eye_token;
@@ -153,6 +165,25 @@ app.use(requireAuth);
 
 // ── Static assets (protected) ────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "..", "public")));
+
+// ── Debug logs viewer (protected) ────────────────────────────────────
+app.get("/api/debug/logs", async (req, res) => {
+  try {
+    const logs = await db.getDebugLogs(100);
+    res.json({ logs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete("/api/debug/logs", async (req, res) => {
+  try {
+    await db.clearDebugLogs();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // ── Site management ──────────────────────────────────────────────────
 app.get("/api/sites", async (req, res) => {

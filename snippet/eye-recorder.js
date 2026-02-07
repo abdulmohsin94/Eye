@@ -8,6 +8,30 @@
   var FLUSH_INTERVAL = 2000; // ms between batch sends
   var MAX_BUFFER = 200; // flush if buffer exceeds this
 
+  // ── Remote diagnostics ─────────────────────────────────────────────
+  // Sends debug logs to the Eye server so you can troubleshoot from the dashboard
+  var LOG_ENDPOINT = EYE_ENDPOINT.replace("/api/events", "/api/debug/log");
+
+  function remoteLog(level, message, extra) {
+    try {
+      var payload = JSON.stringify({
+        siteId: EYE_SITE_ID,
+        sessionId: sessionStorage.getItem("_eye_sid") || "",
+        level: level,
+        message: message,
+        data: extra ? JSON.stringify(extra) : "",
+        url: location.href,
+      });
+      navigator.sendBeacon(LOG_ENDPOINT, new Blob([payload], { type: "text/plain" }));
+    } catch (e) {}
+  }
+
+  remoteLog("info", "recorder loaded", {
+    endpoint: EYE_ENDPOINT,
+    siteId: EYE_SITE_ID,
+    ua: navigator.userAgent.slice(0, 120),
+  });
+
   // ── Debug mode ─────────────────────────────────────────────────────
   // Activate by adding ?eye_debug=1 to any page URL
   var isDebug = /[?&]eye_debug=1/.test(location.search);
@@ -79,6 +103,8 @@
       return;
     }
     var count = buffer.length;
+    var types = {};
+    buffer.forEach(function(e) { types[e.type] = (types[e.type] || 0) + 1; });
     var events = buffer.splice(0);
     var payload = JSON.stringify({
       sessionId: sessionId,
@@ -86,6 +112,9 @@
       url: location.href,
       events: events,
     });
+    var payloadSize = payload.length;
+
+    remoteLog("info", "flush attempt", { count: count, size: payloadSize, types: types });
 
     // Primary: sendBeacon with text/plain (no CORS preflight, works cross-origin)
     if (navigator.sendBeacon) {
@@ -93,10 +122,12 @@
       if (ok) {
         debugSent += count;
         if (isDebug) debugLog("beacon OK (" + count + ")");
+        remoteLog("info", "beacon OK", { count: count, size: payloadSize });
         return;
       }
       // sendBeacon failed (payload too large?) — fall through to fetch
       if (isDebug) debugLog("beacon FAIL, trying fetch...");
+      remoteLog("warn", "beacon FAILED", { count: count, size: payloadSize });
     }
 
     // Fallback: fetch without keepalive
@@ -109,17 +140,21 @@
         if (r.ok) {
           debugSent += count;
           if (isDebug) debugLog("fetch OK (" + count + ")");
+          remoteLog("info", "fetch OK", { count: count, status: r.status });
         } else {
           debugFail += count;
           if (isDebug) debugLog("fetch HTTP " + r.status);
+          remoteLog("error", "fetch HTTP error", { count: count, status: r.status });
         }
       }).catch(function (err) {
         debugFail += count;
         if (isDebug) debugLog("fetch ERR: " + (err.message || err));
+        remoteLog("error", "fetch network error", { error: err.message || String(err) });
       });
     } catch (e) {
       debugFail += count;
       if (isDebug) debugLog("fetch THROW: " + (e.message || e));
+      remoteLog("error", "fetch throw", { error: e.message || String(e) });
     }
   }
 
@@ -134,6 +169,7 @@
       scripts[i].parentNode.removeChild(scripts[i]);
     }
     var html = clone.outerHTML;
+    remoteLog("info", "snapshot captured", { htmlSize: html.length, stripped: scripts.length + " scripts" });
     push("snapshot", {
       html: html,
       baseUrl: location.origin,

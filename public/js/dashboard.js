@@ -563,11 +563,12 @@
   });
 
   // ── View navigation ────────────────────────────────────────────
-  const allViews = [viewSessions, viewReplay, viewSites];
+  const viewDebug = document.getElementById("view-debug");
+  const allViews = [viewSessions, viewReplay, viewSites, viewDebug];
   const navLinks = document.querySelectorAll(".nav-link[data-view]");
 
   function showView(viewId) {
-    allViews.forEach((v) => v.classList.add("hidden"));
+    allViews.forEach((v) => { if (v) v.classList.add("hidden"); });
     navLinks.forEach((l) => l.classList.remove("active"));
     const target = document.getElementById("view-" + viewId);
     if (target) target.classList.remove("hidden");
@@ -576,6 +577,7 @@
 
     if (viewId === "sessions") loadSessions();
     if (viewId === "sites") loadSites();
+    if (viewId === "debug") loadDebugLogs();
   }
 
   navLinks.forEach((link) => {
@@ -727,6 +729,48 @@ document.head.appendChild(s);})();
     if (!checkAuth(res)) return;
     loadSites();
   };
+
+  // ── Debug logs ──────────────────────────────────────────────────
+  const debugLogsBody = document.getElementById("debug-logs-body");
+  const btnRefreshLogs = document.getElementById("btn-refresh-logs");
+  const btnClearLogs = document.getElementById("btn-clear-logs");
+
+  async function loadDebugLogs() {
+    try {
+      const res = await fetch(`${API}/api/debug/logs`);
+      if (!checkAuth(res)) return;
+      const data = await res.json();
+      renderDebugLogs(data.logs || []);
+    } catch (e) {
+      debugLogsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load logs.</td></tr>';
+    }
+  }
+
+  function renderDebugLogs(logs) {
+    if (!logs.length) {
+      debugLogsBody.innerHTML = '<tr><td colspan="6" class="empty-state">No logs yet. Visit your client site to generate logs.</td></tr>';
+      return;
+    }
+    debugLogsBody.innerHTML = logs.map((l) => {
+      const levelClass = l.level === "error" ? "color:#ef4444" : l.level === "warn" ? "color:#f59e0b" : "color:#22c55e";
+      const shortUrl = l.url ? l.url.replace(/https?:\/\//, "").slice(0, 40) : "—";
+      return `<tr>
+        <td style="white-space:nowrap;font-size:12px">${formatDate(l.created_at)}</td>
+        <td><span style="${levelClass};font-weight:600;text-transform:uppercase;font-size:11px">${esc(l.level)}</span></td>
+        <td style="font-size:13px">${esc(l.message)}</td>
+        <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(l.data)}">${esc(l.data || "—")}</td>
+        <td style="font-size:12px">${esc(l.site_id ? l.site_id.slice(0, 8) + "..." : "—")}</td>
+        <td style="font-size:11px" title="${esc(l.url)}">${esc(shortUrl)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  if (btnRefreshLogs) btnRefreshLogs.addEventListener("click", loadDebugLogs);
+  if (btnClearLogs) btnClearLogs.addEventListener("click", async () => {
+    if (!confirm("Clear all debug logs?")) return;
+    await fetch(`${API}/api/debug/logs`, { method: "DELETE" });
+    loadDebugLogs();
+  });
 
   // ── Keyboard shortcuts ──────────────────────────────────────────
   document.addEventListener("keydown", (e) => {

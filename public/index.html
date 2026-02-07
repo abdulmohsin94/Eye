@@ -39,6 +39,9 @@
         <a href="#" class="nav-link" data-view="sites">
           <span class="nav-icon">&#9670;</span> Sites
         </a>
+        <a href="#" class="nav-link" data-view="debug">
+          <span class="nav-icon">&#9881;</span> Debug Logs
+        </a>
       </nav>
     </aside>
 
@@ -160,6 +163,37 @@
 
         <!-- Sites list -->
         <div id="sites-list"></div>
+      </div>
+
+      <!-- Debug Logs view -->
+      <div id="view-debug" class="hidden">
+        <header class="view-header">
+          <h1>Debug Logs</h1>
+          <div>
+            <button id="btn-refresh-logs" class="btn btn-sm">Refresh</button>
+            <button id="btn-clear-logs" class="btn btn-sm btn-danger">Clear All</button>
+          </div>
+        </header>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
+          Remote logs from client-side recorders. Shows if the snippet loaded, flush attempts, and errors.
+        </p>
+        <div id="debug-logs-list" class="table-wrap">
+          <table id="debug-logs-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Level</th>
+                <th>Message</th>
+                <th>Data</th>
+                <th>Site</th>
+                <th>URL</th>
+              </tr>
+            </thead>
+            <tbody id="debug-logs-body">
+              <tr><td colspan="6" class="empty-state">No logs yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
   </div>
