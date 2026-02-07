@@ -110,8 +110,8 @@
 
     if (!sessions || sessions.length === 0) {
       sessionsBody.innerHTML = hasFilters
-        ? '<tr><td colspan="6" class="empty-state">No sessions match your filters.</td></tr>'
-        : '<tr><td colspan="6" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>';
+        ? '<tr><td colspan="7" class="empty-state">No sessions match your filters.</td></tr>'
+        : '<tr><td colspan="7" class="empty-state">No sessions recorded yet. Add the snippet to your site to start capturing.</td></tr>';
       return;
     }
 
@@ -120,6 +120,7 @@
         (s) => `
       <tr>
         <td><span class="session-id">${s.id.slice(0, 12)}...</span></td>
+        <td><span class="site-badge">${esc(s.site_name || "—")}</span></td>
         <td><span class="session-url" title="${esc(s.url)}">${esc(s.url || "—")}</span></td>
         <td><span class="badge badge-events">${s.event_count}</span></td>
         <td>${formatDate(s.first_seen)}</td>

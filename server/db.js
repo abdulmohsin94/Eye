@@ -90,7 +90,9 @@ module.exports = {
   async getSessions(limit, offset) {
     await init();
     const result = await client.execute({
-      sql: "SELECT * FROM sessions ORDER BY last_seen DESC LIMIT ? OFFSET ?",
+      sql: `SELECT sessions.*, sites.name as site_name FROM sessions
+            LEFT JOIN sites ON sessions.site_id = sites.id
+            ORDER BY last_seen DESC LIMIT ? OFFSET ?`,
       args: [limit, offset],
     });
     return result.rows;
@@ -132,7 +134,9 @@ module.exports = {
 
     const [rowsResult, countResult] = await Promise.all([
       client.execute({
-        sql: `SELECT * FROM sessions ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`,
+        sql: `SELECT sessions.*, sites.name as site_name FROM sessions
+              LEFT JOIN sites ON sessions.site_id = sites.id
+              ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`,
         args: [...args, limit, offset],
       }),
       client.execute({

@@ -156,6 +156,11 @@ body {
   font-size: 12px;
   font-weight: 600;
 }
+.site-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+}
 .badge-events {
   background: rgba(99, 102, 241, 0.15);
   color: var(--primary);
