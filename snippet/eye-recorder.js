@@ -43,12 +43,13 @@
       url: location.href,
       events: buffer.splice(0),
     });
+    // Use text/plain to avoid CORS preflight on cross-origin sendBeacon
     if (navigator.sendBeacon) {
-      navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "application/json" }));
+      navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "text/plain" }));
     } else {
       var xhr = new XMLHttpRequest();
       xhr.open("POST", EYE_ENDPOINT, true);
-      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.setRequestHeader("Content-Type", "text/plain");
       xhr.send(payload);
     }
   }

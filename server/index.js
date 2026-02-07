@@ -14,6 +14,8 @@ app.set("trust proxy", 1);
 app.use(cors());
 app.use(cookieParser());
 app.use(express.json({ limit: "5mb" }));
+// Accept text/plain bodies (snippet sends as text/plain to avoid CORS preflight)
+app.use(express.text({ limit: "5mb", type: "text/plain" }));
 
 // ── Auth routes (public) ─────────────────────────────────────────────
 app.get("/login", (req, res) => {
@@ -73,7 +75,9 @@ app.get("/api/health", async (req, res) => {
 // ── Event ingestion (public - no auth required) ──────────────────────
 app.post("/api/events", async (req, res) => {
   try {
-    const { sessionId, siteId, url, events } = req.body;
+    // Body may arrive as text/plain string (to avoid CORS preflight) or parsed JSON
+    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const { sessionId, siteId, url, events } = body;
     if (!sessionId || !events || !Array.isArray(events)) {
       return res.status(400).json({ error: "Invalid payload" });
     }
