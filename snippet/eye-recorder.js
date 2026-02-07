@@ -35,8 +35,6 @@
     if (buffer.length >= MAX_BUFFER) flush();
   }
 
-  var flushing = false;
-
   function flush(useBeacon) {
     if (buffer.length === 0) return;
     var events = buffer.splice(0);
@@ -47,29 +45,21 @@
       events: events,
     });
 
-    // On page unload, use sendBeacon (fire-and-forget)
-    if (useBeacon && navigator.sendBeacon) {
-      navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "text/plain" }));
-      return;
+    // Primary: sendBeacon with text/plain (no CORS preflight, works cross-origin)
+    if (navigator.sendBeacon) {
+      var ok = navigator.sendBeacon(EYE_ENDPOINT, new Blob([payload], { type: "text/plain" }));
+      if (ok) return;
+      // sendBeacon failed (payload too large?) — fall through to fetch
     }
 
-    // Normal flush: use fetch, restore events on failure
+    // Fallback: fetch without keepalive
     try {
       fetch(EYE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: payload,
-      }).then(function (res) {
-        if (!res.ok) {
-          buffer = events.concat(buffer);
-        }
-      }).catch(function () {
-        buffer = events.concat(buffer);
-      });
-    } catch (e) {
-      // Sync error (e.g. invalid URL) — restore events
-      buffer = events.concat(buffer);
-    }
+      }).catch(function () {});
+    } catch (e) {}
   }
 
   // ── DOM Snapshot ───────────────────────────────────────────────────
@@ -308,17 +298,20 @@
   });
 
   // ── Kick it off ────────────────────────────────────────────────────
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
+  // Start flush interval FIRST so interaction events always get sent
+  // even if snapshot/style capture fails
+  setInterval(flush, FLUSH_INTERVAL);
+
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () {
+        try { captureSnapshot(); captureStyles(); } catch (e) {}
+      });
+    } else {
       captureSnapshot();
       captureStyles();
-    });
-  } else {
-    captureSnapshot();
-    captureStyles();
-  }
-
-  setInterval(flush, FLUSH_INTERVAL);
+    }
+  } catch (e) {}
 
   // Expose minimal API
   window.__eye = {
