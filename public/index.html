@@ -170,13 +170,23 @@
         <header class="view-header">
           <h1>Debug Logs</h1>
           <div>
+            <button id="btn-export-logs" class="btn btn-sm btn-primary">Export</button>
             <button id="btn-refresh-logs" class="btn btn-sm">Refresh</button>
             <button id="btn-clear-logs" class="btn btn-sm btn-danger">Clear All</button>
           </div>
         </header>
-        <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
-          Remote logs from client-side recorders. Shows if the snippet loaded, flush attempts, and errors.
-        </p>
+        <div id="debug-filter-bar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <select id="debug-filter-domain" class="filter-input filter-site" style="min-width:160px;">
+            <option value="">All domains</option>
+          </select>
+          <select id="debug-filter-level" class="filter-input" style="min-width:100px;">
+            <option value="">All levels</option>
+            <option value="info">Info</option>
+            <option value="warn">Warn</option>
+            <option value="error">Error</option>
+          </select>
+          <span id="debug-results-summary" style="color:var(--text-muted);font-size:12px;margin-left:auto;"></span>
+        </div>
         <div id="debug-logs-list" class="table-wrap">
           <table id="debug-logs-table">
             <thead>

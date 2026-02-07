@@ -734,21 +734,74 @@ document.head.appendChild(s);})();
   const debugLogsBody = document.getElementById("debug-logs-body");
   const btnRefreshLogs = document.getElementById("btn-refresh-logs");
   const btnClearLogs = document.getElementById("btn-clear-logs");
+  const btnExportLogs = document.getElementById("btn-export-logs");
+  const debugFilterDomain = document.getElementById("debug-filter-domain");
+  const debugFilterLevel = document.getElementById("debug-filter-level");
+  const debugResultsSummary = document.getElementById("debug-results-summary");
+
+  let debugLogsCache = []; // all logs from server
 
   async function loadDebugLogs() {
     try {
       const res = await fetch(`${API}/api/debug/logs`);
       if (!checkAuth(res)) return;
       const data = await res.json();
-      renderDebugLogs(data.logs || []);
+      debugLogsCache = data.logs || [];
+      populateDomainFilter(debugLogsCache);
+      applyDebugFilters();
     } catch (e) {
       debugLogsBody.innerHTML = '<tr><td colspan="6" class="empty-state">Failed to load logs.</td></tr>';
     }
   }
 
+  function extractDomain(url) {
+    if (!url) return "";
+    try {
+      return url.replace(/https?:\/\//, "").split("/")[0];
+    } catch (e) {
+      return url;
+    }
+  }
+
+  function populateDomainFilter(logs) {
+    const current = debugFilterDomain.value;
+    const domains = new Set();
+    logs.forEach((l) => {
+      const d = extractDomain(l.url);
+      if (d) domains.add(d);
+    });
+    debugFilterDomain.innerHTML = '<option value="">All domains</option>';
+    Array.from(domains).sort().forEach((d) => {
+      const opt = document.createElement("option");
+      opt.value = d;
+      opt.textContent = d;
+      debugFilterDomain.appendChild(opt);
+    });
+    debugFilterDomain.value = current;
+  }
+
+  function applyDebugFilters() {
+    const domain = debugFilterDomain.value;
+    const level = debugFilterLevel.value;
+
+    let filtered = debugLogsCache;
+    if (domain) {
+      filtered = filtered.filter((l) => extractDomain(l.url) === domain);
+    }
+    if (level) {
+      filtered = filtered.filter((l) => l.level === level);
+    }
+
+    debugResultsSummary.textContent = (domain || level)
+      ? `${filtered.length} of ${debugLogsCache.length} logs`
+      : `${debugLogsCache.length} logs`;
+
+    renderDebugLogs(filtered);
+  }
+
   function renderDebugLogs(logs) {
     if (!logs.length) {
-      debugLogsBody.innerHTML = '<tr><td colspan="6" class="empty-state">No logs yet. Visit your client site to generate logs.</td></tr>';
+      debugLogsBody.innerHTML = '<tr><td colspan="6" class="empty-state">No logs match your filters.</td></tr>';
       return;
     }
     debugLogsBody.innerHTML = logs.map((l) => {
@@ -764,6 +817,46 @@ document.head.appendChild(s);})();
       </tr>`;
     }).join("");
   }
+
+  // Filter event listeners
+  if (debugFilterDomain) debugFilterDomain.addEventListener("change", applyDebugFilters);
+  if (debugFilterLevel) debugFilterLevel.addEventListener("change", applyDebugFilters);
+
+  // Export logs as formatted JSON
+  if (btnExportLogs) btnExportLogs.addEventListener("click", () => {
+    const domain = debugFilterDomain.value;
+    const level = debugFilterLevel.value;
+    let logs = debugLogsCache;
+    if (domain) logs = logs.filter((l) => extractDomain(l.url) === domain);
+    if (level) logs = logs.filter((l) => l.level === level);
+
+    if (!logs.length) { alert("No logs to export."); return; }
+
+    // Build a well-formatted report
+    const report = logs.map((l) => {
+      const entry = {
+        time: l.created_at,
+        level: l.level,
+        message: l.message,
+        url: l.url || "",
+        site_id: l.site_id || "",
+        session_id: l.session_id || "",
+      };
+      if (l.data) {
+        try { entry.data = JSON.parse(l.data); } catch (e) { entry.data = l.data; }
+      }
+      return entry;
+    });
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    a.download = `eye-debug-logs-${ts}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
   if (btnRefreshLogs) btnRefreshLogs.addEventListener("click", loadDebugLogs);
   if (btnClearLogs) btnClearLogs.addEventListener("click", async () => {

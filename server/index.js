@@ -143,7 +143,7 @@ app.get("/api/debug/logs", (req, res, next) => {
   // Otherwise falls through to the auth-protected version below
   const key = req.query.key;
   if (key && auth.verifyPassword(key)) {
-    return db.getDebugLogs(100).then((logs) => {
+    return db.getDebugLogs(500).then((logs) => {
       res.json({ logs });
     }).catch((e) => res.status(500).json({ error: e.message }));
   }
@@ -182,7 +182,7 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 // ── Debug logs viewer (protected) ────────────────────────────────────
 app.get("/api/debug/logs", async (req, res) => {
   try {
-    const logs = await db.getDebugLogs(100);
+    const logs = await db.getDebugLogs(500);
     res.json({ logs });
   } catch (e) {
     res.status(500).json({ error: e.message });
