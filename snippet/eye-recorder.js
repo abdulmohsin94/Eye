@@ -125,10 +125,18 @@
 
   // ── DOM Snapshot ───────────────────────────────────────────────────
   function captureSnapshot() {
-    var html = document.documentElement.outerHTML;
+    // Clone the DOM and strip all <script> tags before serializing.
+    // Scripts are useless for replay (we remove them on playback anyway)
+    // and they massively bloat the payload (GTM, analytics, etc.).
+    var clone = document.documentElement.cloneNode(true);
+    var scripts = clone.querySelectorAll("script");
+    for (var i = 0; i < scripts.length; i++) {
+      scripts[i].parentNode.removeChild(scripts[i]);
+    }
+    var html = clone.outerHTML;
     push("snapshot", {
       html: html,
-      baseUrl: location.origin + location.pathname,
+      baseUrl: location.origin,
       width: window.innerWidth,
       height: window.innerHeight,
       doctype: document.doctype
