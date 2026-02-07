@@ -243,7 +243,20 @@
   function loadSnapshot(data) {
     const doc = replayFrame.contentDocument;
     doc.open();
-    doc.write(data.html);
+
+    // Inject <base> tag so relative URLs (CSS, images, fonts) resolve
+    // against the original site, not the Eye dashboard domain
+    let html = data.html;
+    if (data.baseUrl) {
+      const baseTag = `<base href="${data.baseUrl}">`;
+      if (html.indexOf("<head") !== -1) {
+        html = html.replace(/<head([^>]*)>/, `<head$1>${baseTag}`);
+      } else {
+        html = baseTag + html;
+      }
+    }
+
+    doc.write(html);
     doc.close();
 
     // Remove all scripts to prevent execution

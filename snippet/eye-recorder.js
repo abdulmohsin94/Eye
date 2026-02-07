@@ -59,6 +59,7 @@
     var html = document.documentElement.outerHTML;
     push("snapshot", {
       html: html,
+      baseUrl: location.origin + location.pathname,
       width: window.innerWidth,
       height: window.innerHeight,
       doctype: document.doctype
