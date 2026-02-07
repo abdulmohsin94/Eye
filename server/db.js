@@ -15,6 +15,8 @@ let initialized = false;
 
 async function init() {
   if (initialized) return;
+
+  // Step 1: Create tables (IF NOT EXISTS won't modify existing tables)
   await client.batch([
     `CREATE TABLE IF NOT EXISTS sites (
       id         TEXT PRIMARY KEY,
@@ -39,14 +41,22 @@ async function init() {
       data       TEXT NOT NULL
     )`,
     `CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, seq)`,
-    `CREATE INDEX IF NOT EXISTS idx_sessions_site ON sessions(site_id)`,
   ]);
-  // Migrate: add site_id column if missing (existing DBs)
+
+  // Step 2: Migrate existing sessions table — add site_id if missing
   try {
     await client.execute("SELECT site_id FROM sessions LIMIT 1");
   } catch (e) {
     await client.execute("ALTER TABLE sessions ADD COLUMN site_id TEXT DEFAULT ''");
   }
+
+  // Step 3: Create index on site_id (only after column guaranteed to exist)
+  try {
+    await client.execute("CREATE INDEX IF NOT EXISTS idx_sessions_site ON sessions(site_id)");
+  } catch (e) {
+    // Index may already exist
+  }
+
   initialized = true;
 }
 
