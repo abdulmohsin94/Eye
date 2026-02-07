@@ -137,6 +137,19 @@ app.post("/api/debug/ping", (req, res) => {
   res.json({ ok: true, received: len, ts: new Date().toISOString() });
 });
 
+// ── Debug logs reader (public but key-protected, for remote CLI access) ──
+app.get("/api/debug/logs", (req, res, next) => {
+  // Allow access with ?key=<EYE_PASSWORD> (for CLI tooling)
+  // Otherwise falls through to the auth-protected version below
+  const key = req.query.key;
+  if (key && auth.verifyPassword(key)) {
+    return db.getDebugLogs(100).then((logs) => {
+      res.json({ logs });
+    }).catch((e) => res.status(500).json({ error: e.message }));
+  }
+  next(); // fall through to auth middleware
+});
+
 // ── Remote debug log ingestion (public - client sites send logs here) ──
 app.post("/api/debug/log", async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
